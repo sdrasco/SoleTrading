@@ -1,130 +1,153 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import io
-import base64
+import io, base64, datetime
+from jinja2 import Template
 
-# Read trades data
-df = pd.read_csv('trades.csv', parse_dates=['OPEN_DATE', 'CLOSE_DATE'])
+# ------------------------------
+# Helper Functions for Analysis
+# ------------------------------
 
-# Extract EXPIRATION_DATE, STRIKE, and OPTION_TYPE from DESCRIPTION
-exp_pattern = r'(\w+) (\w+) (\d{1,2}) (\d{4}) ([\d.]+) (Call|Put)'
-df[['SYMBOL', 'MONTH', 'DAY', 'YEAR', 'STRIKE', 'OPTION_TYPE']] = df['DESCRIPTION'].str.extract(exp_pattern)
-df['EXPIRATION_DATE'] = pd.to_datetime(df['MONTH'] + ' ' + df['DAY'] + ' ' + df['YEAR'])
-df['STRIKE'] = df['STRIKE'].astype(float)
-df.drop(['MONTH', 'DAY', 'YEAR'], axis=1, inplace=True)
+def load_trades(filename):
+    df = pd.read_csv(filename, parse_dates=["OPEN DATE", "CLOSE DATE"])
+    # If DAYS_HELD is not computed, calculate it from OPEN DATE and CLOSE DATE
+    if "DAYS_HELD" not in df.columns:
+        df["DAYS_HELD"] = (df["CLOSE DATE"] - df["OPEN DATE"]).dt.days
+    return df
 
-# Rename columns
-df.rename(columns={'COMMISSION_TOTAL': 'COMMISSION', 'FEES_TOTAL': 'FEES'}, inplace=True)
+def compute_kpis(df):
+    total_trades = len(df)
+    net_profit = df["NET PROFIT"].sum()
+    avg_trade_return = df["RETURN"].mean()
+    win_rate = (df["NET PROFIT"] > 0).mean() * 100
+    sharpe_ratio = df["RETURN"].mean() / df["RETURN"].std() if df["RETURN"].std() > 0 else np.nan
 
-# Calculate days held
-df['Days Held'] = (df['CLOSE_DATE'] - df['OPEN_DATE']).dt.days
+    # Build an equity curve: sort by CLOSE DATE and cumulatively sum net profit.
+    df_sorted = df.sort_values(by="CLOSE DATE").copy()
+    df_sorted["CUMULATIVE_NET_PROFIT"] = df_sorted["NET PROFIT"].cumsum()
 
-# Calculate Days to Expiration (DTE)
-df['DTE'] = (df['EXPIRATION_DATE'] - df['CLOSE_DATE']).dt.days
+    # Calculate maximum drawdown from the equity curve.
+    cummax = df_sorted["CUMULATIVE_NET_PROFIT"].cummax()
+    drawdown = df_sorted["CUMULATIVE_NET_PROFIT"] - cummax
+    max_drawdown = drawdown.min()
 
-# Calculate Net Profit (%)
-df['Net Profit (%)'] = round((df['NET_PROFIT'] / abs(df['OPEN_AMOUNT'])) * 100, 2)
+    volatility = df["RETURN"].std()
+    return {
+       "total_trades": total_trades,
+       "net_profit": net_profit,
+       "avg_trade_return": avg_trade_return,
+       "win_rate": win_rate,
+       "sharpe_ratio": sharpe_ratio,
+       "max_drawdown": max_drawdown,
+       "volatility": volatility,
+       "equity_curve": df_sorted
+    }
 
-# Simplified DESCRIPTION (e.g., "Put at 395" or "Call at 250.5")
-df['DESCRIPTION'] = df.apply(
-    lambda row: f"{row['OPTION_TYPE']} at {int(row['STRIKE']) if row['STRIKE'].is_integer() else row['STRIKE']}", 
-    axis=1
-)
+def generate_weekly_summary(df):
+    # Create a week-ending date from the CLOSE DATE.
+    df["WEEK"] = df["CLOSE DATE"].dt.to_period("W").apply(lambda r: r.end_time.date())
+    weekly = df.groupby("WEEK").agg(
+         net_profit=("NET PROFIT", "sum"),
+         num_trades=("NET PROFIT", "count"),
+         avg_days_held=("DAYS_HELD", "mean"),
+         avg_return=("RETURN", "mean"),
+         winning_trades=("NET PROFIT", lambda x: (x > 0).sum())
+    ).reset_index()
+    weekly["win_rate"] = (weekly["winning_trades"] / weekly["num_trades"]) * 100
+    # Compute weekly Sharpe ratio (using the trade return data grouped by week)
+    weekly["sharpe_ratio"] = df.groupby("WEEK")["RETURN"].apply(lambda x: x.mean()/x.std() if x.std()>0 else np.nan).values
+    # Round numeric columns to 2 decimals
+    numeric_cols = weekly.select_dtypes(include=[np.number]).columns
+    weekly[numeric_cols] = weekly[numeric_cols].round(2)
+    return weekly
 
-# Weekly summary
-weekly_summary = df.set_index('CLOSE_DATE').resample('W').agg({
-    'NET_PROFIT': 'sum',
-    'QTY': 'count',
-    'Days Held': 'mean',
-    'Net Profit (%)': 'mean',
-})
-
-weekly_summary.rename(columns={
-    'NET_PROFIT': 'Net Profit ($)',
-    'QTY': 'Number of Trades',
-    'Days Held': 'Average Days Held',
-    'Net Profit (%)': 'Average Net Profit (%)'
-}, inplace=True)
-
-weekly_summary['Winning Trades'] = df[df['NET_PROFIT'] > 0].set_index('CLOSE_DATE').resample('W')['NET_PROFIT'].count()
-weekly_summary['Win Rate (%)'] = (weekly_summary['Winning Trades'] / weekly_summary['Number of Trades']) * 100
-
-# Sharpe ratio calculation (annualized weekly)
-weekly_returns = df.set_index('CLOSE_DATE').resample('W')['NET_PROFIT'].sum()
-weekly_summary['Sharpe Ratio'] = (weekly_returns.mean() / weekly_returns.std()) * np.sqrt(52)
-
-# Open positions
-open_positions = pd.read_csv('unclosed.csv', parse_dates=['DATE', 'EXPIRATION_DATE'])
-open_positions = open_positions[['SYMBOL', 'OPTION_TYPE', 'EXPIRATION_DATE', 'STRIKE', 'DATE', 'QTY', 'PRICE', 'AMOUNT']]
-open_positions.rename(columns={'DATE': 'Open Date', 'AMOUNT': 'Cost Basis', 'EXPIRATION_DATE': 'Expiration Date',
-                               'SYMBOL': 'Symbol', 'OPTION_TYPE': 'Option Type', 'STRIKE': 'Strike',
-                               'QTY': 'Quantity', 'PRICE': 'Price'}, inplace=True)
-
-# Function to encode plot to base64
-def plot_to_base64(plt):
+def generate_equity_curve_plot(equity_curve_df):
+    plt.figure(figsize=(10,6))
+    plt.plot(equity_curve_df["CLOSE DATE"], equity_curve_df["CUMULATIVE_NET_PROFIT"], marker="o")
+    plt.xlabel("Close Date")
+    plt.ylabel("Cumulative Net Profit ($)")
+    plt.title("Equity Curve")
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
+    plt.savefig(buf, format="png", bbox_inches="tight")
     plt.close()
-    buf.seek(0)
-    encoded = base64.b64encode(buf.read()).decode('utf-8')
-    return encoded
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-# Weekly Net Profit plot
-plt.figure(figsize=(6, 3))
-weekly_returns.plot(kind='bar', color='#8fbcb9')
-plt.title('Weekly Net Profit')
-plt.xlabel('Week Ending')
-plt.ylabel('Net Profit ($)')
-plt.xticks(ticks=range(len(weekly_returns)), labels=[date.strftime('%Y-%m-%d') for date in weekly_returns.index], rotation=45)
-net_profit_img = plot_to_base64(plt)
+def generate_trade_return_histogram(df):
+    plt.figure(figsize=(10,6))
+    plt.hist(df["RETURN"], bins=20, edgecolor="black")
+    plt.xlabel("Trade Return")
+    plt.ylabel("Frequency")
+    plt.title("Trade Return Distribution")
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight")
+    plt.close()
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-# Trade Duration Distribution plot
-plt.figure(figsize=(6, 3))
-df['Days Held'].plot.hist(bins=range(0, df['Days Held'].max() + 2), color='#8fbcb9', edgecolor='black')
-plt.title('Distribution of Trade Durations')
-plt.xlabel('Days Held')
-plt.ylabel('Number of Trades')
-trade_duration_img = plot_to_base64(plt)
+def render_report(template_file, context, output_file="report.html"):
+    with open(template_file, "r") as f:
+        template_str = f.read()
+    template = Template(template_str)
+    report_html = template.render(context)
+    with open(output_file, "w") as f:
+        f.write(report_html)
+    print(f"Report written to {output_file}")
 
-# Generate HTML Report
-html_report = f"""
-<html>
-<head>
-<title>Trading Performance Report</title>
-<style>
-body {{ font-family: Arial; background-color: #f4f7f6; color: #333; padding: 20px; }}
-table {{border-collapse: collapse; width: 80%; margin: auto;}}
-th {{background-color: #8fbcb9; color: white;}}
-td, th {{padding: 5px; text-align: center;}}
-tr:nth-child(even) {{background-color: #f9fbfa;}}
-h1, h2 {{color: #6b9080; text-align: center;}}
-</style>
-</head>
-<body>
-<h1>Trading Performance Report</h1>
+# ------------------------------
+# Main Script
+# ------------------------------
 
-<h2>Weekly Performance Summary</h2>
-{weekly_summary.to_html(float_format=lambda x: f'{x:,.2f}')}
+if __name__ == '__main__':
+    # Load trades data from trades.csv
+    trades_df = load_trades("trades.csv")
 
-<h2>Visualizations</h2>
-<div style=\"text-align:center;\">
-    <img src='data:image/png;base64,{net_profit_img}' style='width:25%;'>
-    <img src='data:image/png;base64,{trade_duration_img}' style='width:25%;'>
-</div>
+    # Compute KPIs and the equity curve.
+    kpis = compute_kpis(trades_df)
 
-<h2>Open Positions</h2>
-{open_positions.to_html(index=False)}
+    # Generate weekly performance summary and convert to HTML.
+    weekly_summary = generate_weekly_summary(trades_df)
+    weekly_summary_html = weekly_summary.to_html(index=False, classes="dataframe", border=1)
 
-<h2>Individual Trades</h2>
-{df[['SYMBOL', 'DESCRIPTION', 'OPEN_DATE', 'CLOSE_DATE', 'QTY', 'OPEN_PRICE','CLOSE_PRICE', 'OPEN_AMOUNT', 'CLOSE_AMOUNT', 'COMMISSION',
-     'FEES', 'NET_PROFIT', 'Net Profit (%)', 'Days Held', 'DTE']].rename(columns={'SYMBOL':'Symbol','DESCRIPTION':'Description','QTY':'Quantity','NET_PROFIT':'Net Profit ($)'}).to_html(index=False,float_format=lambda x:f'{x:,.2f}')}
+    # Generate equity curve and trade return histogram as Base64-encoded images.
+    equity_curve_img = generate_equity_curve_plot(kpis["equity_curve"])
+    trade_hist_img = generate_trade_return_histogram(trades_df)
 
-</body>
-</html>
-"""
+    # Load open positions and individual trades as HTML tables.
+    open_positions_df = pd.read_csv("unclosed.csv")
+    # Round numeric columns in open positions.
+    numeric_cols = open_positions_df.select_dtypes(include=[np.number]).columns
+    open_positions_df[numeric_cols] = open_positions_df[numeric_cols].round(2)
+    # Remove underscores from column names for display.
+    open_positions_df.columns = [col.replace("_", " ") for col in open_positions_df.columns]
+    open_positions_html = open_positions_df.to_html(index=False, classes="dataframe", border=1)
+    
+    trades_html_df = trades_df.copy()
+    # Round numeric columns in individual trades.
+    numeric_cols = trades_html_df.select_dtypes(include=[np.number]).columns
+    trades_html_df[numeric_cols] = trades_html_df[numeric_cols].round(2)
+    trades_html_df.columns = [col.replace("_", " ") for col in trades_html_df.columns]
+    individual_trades_html = trades_html_df.to_html(index=False, classes="dataframe", border=1)
 
-with open('trading_report.html', 'w') as f:
-    f.write(html_report)
+    # Build context for the template using keys without spaces.
+    context = {
+        "Start_Date": str(trades_df["CLOSE DATE"].min().date()),
+        "End_Date": str(trades_df["CLOSE DATE"].max().date()),
+        "Cumulative_Net_Profit": f"{kpis['net_profit']:.2f}",
+        "Overall_Win_Rate": f"{kpis['win_rate']:.2f}",
+        "Average_Trade_Return": f"{kpis['avg_trade_return']:.4f}",
+        "Total_Trades": kpis["total_trades"],
+        "Net_Profit": f"{kpis['net_profit']:.2f}",
+        "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.2f}%",
+        "Win_Rate": f"{kpis['win_rate']:.2f}",
+        "Sharpe_Ratio": f"{kpis['sharpe_ratio']:.2f}",
+        "Max_Drawdown": f"{kpis['max_drawdown']:.2f}",
+        "Volatility": f"{kpis['volatility']:.2f}",
+        "Equity_Curve": equity_curve_img,
+        "Trade_Return_Histogram": trade_hist_img,
+        "Weekly_Summary": weekly_summary_html,
+        "Open_Positions": open_positions_html,
+        "Individual_Trades": individual_trades_html,
+        "System_Name": "Your System Name Here"
+    }
 
-print("Trading performance report generated as 'trading_report.html'")
+    # Render the report using your template (template.html) and output to report.html.
+    render_report("template.html", context)
