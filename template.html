@@ -10,7 +10,7 @@
       color: #333; 
       padding: 20px; 
     }
-    h1, h2, h3 { 
+    h1, h2 { 
       text-align: center; 
       color: #6b9080; 
     }
@@ -36,11 +36,17 @@
     }
     .chart { 
       text-align: center; 
-      margin: 20px; 
+      margin: 10px auto; 
     }
-    .chart img { 
+    /* Restore specific sizing for equity and histogram charts */
+    .equity-chart img { 
       width: 45%; 
       margin: 10px; 
+    }
+    /* Feature plots at 100% within their containers */
+    .feature-plot img {
+      width: 100%; 
+      height: auto; 
     }
     footer { 
       text-align: center; 
@@ -85,6 +91,10 @@
           <td>{{ Sharpe_Ratio }}</td>
         </tr>
         <tr>
+          <td>Adjusted Sortino</td>
+          <td>{{ adjusted_sortino }}</td>
+        </tr>
+        <tr>
           <td>Max Drawdown (%)</td>
           <td>{{ Max_Drawdown }}</td>
         </tr>
@@ -103,13 +113,48 @@
   </div>
   
   <!-- Equity Curve and Visualizations Section -->
-  <div class="section" id="visualizations">
+  <div class="section equity-chart" id="visualizations">
     <h2>Equity Curve & Visualizations</h2>
     <div class="chart">
       <img src="data:image/png;base64,{{ Equity_Curve }}" alt="Equity Curve">
       <img src="data:image/png;base64,{{ Trade_Return_Histogram }}" alt="Trade Return Histogram">
     </div>
   </div>
+  
+  <!-- Trade Factor Analysis Section -->
+  <div class="section" id="trade-factor-analysis">
+    <h2>Trade Factor Analysis</h2>
+    
+    <!-- Win Rate by Symbol Chart -->
+    <div class="chart">
+      <img src="data:image/png;base64,{{ Win_Rate_By_Symbol }}" alt="Win Rate by Symbol">
+    </div>
+
+    <!-- Existing Nx2 Grid Feature Plots -->
+    <table style="width:90%; margin:auto; border:none;">
+      {% set features = Feature_Plots.keys() | list %}
+      {% for i in range(0, features|length, 2) %}
+      <tr>
+        <td style="width:50%; padding:10px; border:none; vertical-align:top;">
+          <div class="feature-plot chart">
+            <img src="data:image/png;base64,{{ Feature_Plots[features[i]] }}" alt="Plot for {{ features[i] }}">
+          </div>
+        </td>
+
+        {% if i + 1 < features|length %}
+        <td style="width:50%; padding:10px; border:none; vertical-align:top;">
+          <div class="feature-plot chart">
+            <img src="data:image/png;base64,{{ Feature_Plots[features[i + 1]] }}" alt="Plot for {{ features[i + 1] }}">
+          </div>
+        </td>
+        {% else %}
+        <td style="width:50%; padding:10px; border:none;"></td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
   
   <!-- Open Positions Section -->
   <div class="section" id="open-positions">
