@@ -1,3 +1,9 @@
+# Options Trading Report Generator
+
+This repository contains code that converts options trading activity from an [Ally.com](https://www.ally.com/) brokerage account into an HTML report. Although the repository is public, it's maintained as a personal tool to help manage and analyze options trading data.
+
+The code is released under the [MIT License](LICENSE).
+
 # Pipeline Overview
 
 This pipeline processes option activity data and generates a report. Follow these steps:
