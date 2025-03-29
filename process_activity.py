@@ -3,12 +3,11 @@ import csv
 import pandas as pd
 import re
 from collections import deque
-from collections import deque
 
 def build_transactions(activity_file='activity.txt', transactions_file='transactions.csv'):
     """
     Reads the activity file (assumed to be tab-delimited) and writes out a CSV file
-    with specific columns. This function embeds the original build_transactions.py code.
+    with specific columns.
     """
     columns = ["DATE", "ACTIVITY", "QTY", "SYMBOL", "DESCRIPTION", "PRICE", "COMMISSION", "FEES", "AMOUNT"]
     
@@ -220,7 +219,7 @@ def verify_consistency(df, trades_df, unopened_df, unclosed_df):
         ['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
     )['QTY'].sum().reset_index().rename(columns={'QTY': 'unopened_qty'})
 
-    # Merge for open events.
+    # Merge for open events using consistent column names.
     open_check = original_open.merge(
         trades_group,
         left_on=['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
@@ -237,7 +236,7 @@ def verify_consistency(df, trades_df, unopened_df, unclosed_df):
     open_check['total_open_calc'] = open_check['matched_qty'] + open_check['unclosed_qty']
     open_check['open_diff'] = open_check['total_open'] - open_check['total_open_calc']
 
-    # Merge for close events.
+    # Merge for close events using consistent column names.
     close_check = original_close.merge(
         trades_group,
         left_on=['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
@@ -284,11 +283,38 @@ if __name__ == '__main__':
 
     trades_df.to_csv('trades.csv', index=False)
     unopened_df.to_csv('unopened.csv', index=False)
+    
+    # Make a copy of the original unclosed_df for consistency check.
+    unclosed_df_original = unclosed_df.copy()
+    
+    # Refactor unclosed_df to keep only the essential columns for open positions.
+    if not unclosed_df.empty:
+        unclosed_df = unclosed_df.copy()
+        # Compute "DTE AT OPEN" from the open date (stored in 'DATE') and expiration date.
+        unclosed_df['DTE AT OPEN'] = (unclosed_df['EXPIRATION_DATE'] - unclosed_df['DATE']).dt.days
+        # Rename columns for clarity.
+        unclosed_df.rename(columns={
+            'DATE': 'OPEN DATE',
+            'PRICE': 'OPEN PRICE',
+            'AMOUNT': 'OPEN AMOUNT'
+        }, inplace=True)
+        # Select the concise set of columns.
+        unclosed_df = unclosed_df[['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
+                                   'OPEN DATE', 'DTE AT OPEN', 'QTY', 'OPEN PRICE', 'OPEN AMOUNT']]
+        # Optional: Rename columns to be more user-friendly.
+        unclosed_df.rename(columns={
+            'OPT_SYMBOL': 'Option Symbol',
+            'EXPIRATION_DATE': 'Expiration',
+            'STRIKE': 'Strike Price',
+            'OPTION_TYPE': 'Option Type',
+            'QTY': 'Quantity'
+        }, inplace=True)
+    
     unclosed_df.to_csv('unclosed.csv', index=False)
 
     print('Processed trades written to trades.csv')
     print('Unopened positions written to unopened.csv')
-    print('Unclosed positions written to unclosed.csv')
+    print('Unclosed positions (concise) written to unclosed.csv')
 
-    # Run the consistency check and print the results.
-    verify_consistency(df, trades_df, unopened_df, unclosed_df)
+    # Run the consistency check on the original unclosed_df.
+    verify_consistency(df, trades_df, unopened_df, unclosed_df_original)

@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
+import math
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import io, base64, datetime
 from jinja2 import Template
 
@@ -69,7 +71,7 @@ def compute_kpis(df):
     win_rate = (df["NET PROFIT"] > 0).mean() * 100
     sharpe_ratio = df["RETURN"].mean() / df["RETURN"].std() if df["RETURN"].std() > 0 else np.nan
 
-    # Sort for equity curve
+    # Sort for equity curve (trade-by-trade cumulative net profit)
     df_sorted = df.sort_values(by="CLOSE DATE").copy()
     df_sorted["CUMULATIVE_NET_PROFIT"] = df_sorted["NET PROFIT"].cumsum()
 
@@ -91,7 +93,7 @@ def compute_kpis(df):
         "sharpe_ratio": sharpe_ratio,
         "max_drawdown_pct": max_drawdown_pct,
         "volatility": volatility,
-        "equity_curve": df_sorted,
+        "equity_curve": df_sorted,  # still used for other KPIs
         "adjusted_sortino_ratio": adjusted_sortino_ratio
     }
 
@@ -131,26 +133,65 @@ def generate_weekly_summary(df):
     weekly.columns = [col.replace("_", " ").title() for col in weekly.columns]
     return weekly
 
-def generate_equity_curve_plot(equity_curve_df):
-    df = equity_curve_df.copy().sort_values('CLOSE DATE')
-    df['WEEK'] = df['CLOSE DATE'].dt.to_period('W').apply(lambda r: r.start_time)
-    unique_weeks = df['WEEK'].drop_duplicates().reset_index(drop=True)
-    week_number_mapping = {date: i+1 for i, date in enumerate(unique_weeks)}
-
+def generate_equity_curve_plot(trades_df):
+    """
+    Generate a daily equity curve where each day is plotted as a dot.
+    Each point is computed as the previous day's equity plus the sum of that day's NET PROFIT.
+    Days with no trades are included (the equity remains unchanged).
+    The horizontal axis is transformed to represent weeks.
+    """
+    df = trades_df.copy()
+    # Convert CLOSE DATE to a proper datetime containing only the date portion.
+    df['DATE'] = pd.to_datetime(df['CLOSE DATE'].dt.date)
+    
+    # Group by date and sum NET PROFIT
+    daily_profit = df.groupby('DATE')['NET PROFIT'].sum().sort_index()
+    
+    # Create a complete date range from the first to last date.
+    all_dates = pd.date_range(start=daily_profit.index.min(), end=daily_profit.index.max(), freq='D')
+    daily_profit = daily_profit.reindex(all_dates, fill_value=0)
+    
+    # Compute cumulative equity (carry forward equity on days with no trades)
+    cumulative_equity = daily_profit.cumsum()
+    
+    # Transform dates to week numbers: 1 + (days since start)/7 (fractional values)
+    start_date = cumulative_equity.index[0]
+    x_values = 1 + (cumulative_equity.index - start_date).days / 7
+    
     plt.figure(figsize=(10, 6))
-    plt.plot(df["CLOSE DATE"], df["CUMULATIVE_NET_PROFIT"], marker="o", linewidth=1)
-    plt.xlabel("Week #", fontsize=20)
-    plt.ylabel("Cumulative Net Profit ($)", fontsize=20)
-    plt.title("Equity Curve", fontsize=24)
-    plt.xticks(
-        ticks=unique_weeks, 
-        labels=[week_number_mapping[date] for date in unique_weeks],
-        fontsize=14, rotation=0
-    )
-    plt.yticks(fontsize=14)
-    plt.grid(True, linestyle='--', alpha=0.5)
+    
+    # Define a muted blue color and use larger dots
+    muted_blue = "#4a90e2"
+    #plt.scatter(x_values, cumulative_equity.values, color=muted_blue, s=150)
+    plt.plot(x_values, cumulative_equity.values, marker='o', markersize=12, linestyle='-', color=muted_blue)
+    
+    # Set axis labels with increased font sizes
+    plt.xlabel("Week", fontsize=21)
+    plt.ylabel("Equity ($)", fontsize=21)
+    
+    # Set x-ticks at integer week values
+    max_week = math.ceil(x_values.max())
+    ticks = np.arange(1, max_week + 1)
+    plt.xticks(ticks=ticks, fontsize=21)
+    plt.yticks(fontsize=21)
+    
+    # Remove grid lines and omit a chart title.
     plt.tight_layout()
+    
     buf = io.BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight")
+    plt.close()
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+def generate_trade_return_histogram(df):
+    plt.figure(figsize=(10,6))
+    plt.hist(df["RETURN"], bins=20, edgecolor="black")
+    plt.xlabel("Trade Return", fontsize=21)
+    plt.ylabel("Number of Trades", fontsize=21)
+    plt.xticks(fontsize=21)
+    plt.yticks(fontsize=21)
+    buf = io.BytesIO()
+    plt.tight_layout()
     plt.savefig(buf, format="png", bbox_inches="tight")
     plt.close()
     return base64.b64encode(buf.getvalue()).decode("utf-8")
@@ -168,27 +209,12 @@ def generate_win_rate_by_symbol_plot(df):
     plt.barh(labels, summary['win_rate'], color='skyblue', edgecolor='black', height=bar_height)
     plt.ylabel('Symbol (Number of Trades)')
     plt.xlabel('Win Rate (%)')
-    plt.title('Win Rate by Symbol')
     plt.xlim(0, 100)
     plt.tight_layout()
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight")
     plt.close()
     return base64.b64encode(buf.getvalue()).decode("utf-8")    
-
-def generate_trade_return_histogram(df):
-    plt.figure(figsize=(10,6))
-    plt.hist(df["RETURN"], bins=20, edgecolor="black")
-    plt.xlabel("Trade Return", fontsize=20)
-    plt.ylabel("Frequency", fontsize=20)
-    plt.title("Trade Return Distribution", fontsize=24)
-    plt.xticks(fontsize=14)
-    plt.yticks(fontsize=14)
-    buf = io.BytesIO()
-    plt.tight_layout()
-    plt.savefig(buf, format="png", bbox_inches="tight")
-    plt.close()
-    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 def generate_feature_plots(df, features):
     plots = {}
@@ -204,11 +230,11 @@ def generate_feature_plots(df, features):
             df_loss = df[df["WIN"] == 0]
             plt.hist(df_win[feature].dropna(), bins=20, alpha=0.5, label="Wins")
             plt.hist(df_loss[feature].dropna(), bins=20, alpha=0.5, label="Losses")
-            plt.xlabel(feature.replace("_", " "), fontsize=20)
-            plt.ylabel("Frequency", fontsize=20)
-            plt.legend(fontsize=16)
-            plt.xticks(fontsize=14)
-            plt.yticks(fontsize=14)
+            plt.xlabel(feature.replace("_", " "), fontsize=14)
+            plt.ylabel("Number of Trades", fontsize=14)
+            plt.legend(fontsize=14)
+            plt.xticks(fontsize=12)
+            plt.yticks(fontsize=12)
         else:
             cat_counts = df.groupby([feature, "WIN"]).size().reset_index(name="count")
             pivot_df = cat_counts.pivot(index=feature, columns="WIN", values="count").fillna(0)
@@ -223,11 +249,11 @@ def generate_feature_plots(df, features):
                 plt.close()
                 continue
             pivot_df.plot(kind="bar", stacked=True, ax=plt.gca())
-            plt.xlabel(feature.replace("_", " "), fontsize=20)
-            plt.ylabel("Count", fontsize=20)
-            plt.legend(["Losses", "Wins"], fontsize=16, loc="best")
-            plt.xticks(fontsize=14, rotation=45, ha='right')
-            plt.yticks(fontsize=14)
+            plt.xlabel(feature.replace("_", " "), fontsize=14)
+            plt.ylabel("Number of Trades", fontsize=14)
+            plt.legend(["Losses", "Wins"], fontsize=14, loc="best")
+            plt.xticks(fontsize=12, rotation=45, ha='right')
+            plt.yticks(fontsize=12)
         buf = io.BytesIO()
         plt.tight_layout()
         plt.savefig(buf, format="png", bbox_inches="tight")
@@ -253,7 +279,10 @@ if __name__ == '__main__':
     kpis = compute_kpis(trades_df)
     weekly_summary = generate_weekly_summary(trades_df)
     weekly_summary_html = weekly_summary.to_html(index=False, classes="dataframe", border=1)
-    equity_curve_img = generate_equity_curve_plot(kpis["equity_curve"])
+    
+    # Now, generate a daily equity curve plot from the trades data
+    equity_curve_img = generate_equity_curve_plot(trades_df)
+    
     trade_hist_img = generate_trade_return_histogram(trades_df)
     
     open_positions_df = pd.read_csv("unclosed.csv")
