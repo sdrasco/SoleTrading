@@ -21,10 +21,6 @@ def load_trades(filename):
         parse_dates=["OPEN DATE", "CLOSE DATE", "EXPIRATION"]
     )
     
-    # Rename DTE AT OPEN -> DAYS_TO_EXPIRATION
-    if "DTE AT OPEN" in df.columns:
-        df.rename(columns={"DTE AT OPEN": "DAYS_TO_EXPIRATION"}, inplace=True)
-
     # If DAYS_HELD is not in the file, calculate it
     if "DAYS_HELD" not in df.columns:
         df["DAYS_HELD"] = (df["CLOSE DATE"] - df["OPEN DATE"]).dt.days
@@ -207,14 +203,19 @@ def generate_win_rate_by_symbol_plot(df):
     bar_height = 0.6
     plt.figure(figsize=(8, max(3, 0.4 * num_bars)))
     plt.barh(labels, summary['win_rate'], color='skyblue', edgecolor='black', height=bar_height)
-    plt.ylabel('Symbol (Number of Trades)')
-    plt.xlabel('Win Rate (%)')
+    
+    # Increase font sizes for labels and ticks
+    plt.ylabel('Symbol (Number of Trades)', fontsize=16)
+    plt.xlabel('Win Rate (%)', fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    
     plt.xlim(0, 100)
     plt.tight_layout()
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight")
     plt.close()
-    return base64.b64encode(buf.getvalue()).decode("utf-8")    
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 def generate_feature_plots(df, features):
     plots = {}
@@ -300,8 +301,8 @@ if __name__ == '__main__':
     candidate_features = []
     if "DAYS_HELD" in trades_df.columns:
         candidate_features.append("DAYS_HELD")
-    if "DAYS_TO_EXPIRATION" in trades_df.columns:
-        candidate_features.append("DAYS_TO_EXPIRATION")
+    if "DTE AT OPEN" in trades_df.columns:
+        candidate_features.append("DTE AT OPEN")
     if "DAY_OF_WEEK_AT_OPEN" in trades_df.columns:
         candidate_features.append("DAY_OF_WEEK_AT_OPEN")
     if "DAY_OF_WEEK_AT_CLOSE" in trades_df.columns:
