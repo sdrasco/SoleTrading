@@ -1,6 +1,36 @@
+import sys
+import csv
 import pandas as pd
 import re
 from collections import deque
+from collections import deque
+
+def build_transactions(activity_file='activity.txt', transactions_file='transactions.csv'):
+    """
+    Reads the activity file (assumed to be tab-delimited) and writes out a CSV file
+    with specific columns. This function embeds the original build_transactions.py code.
+    """
+    columns = ["DATE", "ACTIVITY", "QTY", "SYMBOL", "DESCRIPTION", "PRICE", "COMMISSION", "FEES", "AMOUNT"]
+    
+    with open(activity_file, 'r') as infile, open(transactions_file, 'w', newline='') as outfile:
+        writer = csv.writer(outfile)
+        writer.writerow(columns)
+    
+        for line in infile:
+            if not line.strip():
+                continue
+            parts = line.strip().split('\t')
+            if len(parts) < 9:
+                continue
+    
+            date, activity, qty, sym_or_type, description, price, commission, fees, amount = parts[:9]
+    
+            if activity == "Cash Movement":
+                symbol = sym_or_type if "FULLYPAID LENDING REBATE" in description else ""
+            else:
+                symbol = sym_or_type.split()[0]
+    
+            writer.writerow([date, activity, qty, symbol, description, price, commission, fees, amount])
 
 def parse_currency(val):
     return float(str(val).replace('$', '').replace(',', ''))
@@ -22,13 +52,15 @@ def parse_description(row):
 
 def read_transactions(file):
     df = pd.read_csv(file, thousands=',')
+    # Exclude cash movements (which were written by build_transactions)
     df = df[df['ACTIVITY'] != 'Cash Movement'].copy()
 
     currency_cols = ['PRICE', 'COMMISSION', 'FEES', 'AMOUNT']
     for col in currency_cols:
         df[col] = df[col].apply(parse_currency)
 
-    # For our processing we want QTY to be positive, regardless of the original sign.
+    # Ensure QTY is numeric and always positive.
+    df['QTY'] = pd.to_numeric(df['QTY'])
     df['QTY'] = df['QTY'].abs()
 
     df['DATE'] = pd.to_datetime(df['DATE'])
@@ -58,7 +90,7 @@ def merge_simultaneous(df):
             and df.at[i, 'EXPIRATION_DATE'] == df.at[i + 1, 'EXPIRATION_DATE']
             and df.at[i, 'OPTION_TYPE'] == df.at[i + 1, 'OPTION_TYPE']
         ):
-            # Merge the next row into the current row using absolute quantities.
+            # Merge the next row into the current row using weighted average for PRICE.
             price1 = df.at[i, 'PRICE']
             price2 = df.at[i + 1, 'PRICE']
             weighted_price = (price1 * df.at[i, 'QTY'] + price2 * df.at[i + 1, 'QTY']) / (df.at[i, 'QTY'] + df.at[i + 1, 'QTY'])
@@ -235,7 +267,18 @@ def verify_consistency(df, trades_df, unopened_df, unclosed_df):
         print(close_check[['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE', 'total_close', 'total_close_calc', 'close_diff']])
 
 if __name__ == '__main__':
-    df = read_transactions('transactions.csv')
+    # Use a command-line argument to override the default activity file, if provided.
+    if len(sys.argv) > 1:
+        activity_file = sys.argv[1]
+    else:
+        activity_file = 'activity.txt'
+    transactions_file = 'transactions.csv'
+    
+    print(f"Building transactions from {activity_file} to {transactions_file}...")
+    build_transactions(activity_file, transactions_file)
+    
+    # Now read in the transactions and process trades.
+    df = read_transactions(transactions_file)
     df = merge_simultaneous(df)
     trades_df, unopened_df, unclosed_df = match_trades(df)
 
