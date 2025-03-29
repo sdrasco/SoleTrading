@@ -20,3 +20,10 @@ Icon?
 # Logs and temporary files
 *.log
 *.tmp
+
+# Activity and generated CSV files
+activity.txt
+transactions.csv
+trades.csv
+unclosed.csv
+unopened.csv
