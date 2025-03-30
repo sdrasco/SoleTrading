@@ -130,55 +130,66 @@ def generate_weekly_summary(df):
     return weekly
 
 def generate_equity_curve_plot(trades_df):
-    """
-    Generate a daily equity curve where each day is plotted as a dot.
-    Each point is computed as the previous day's equity plus the sum of that day's NET PROFIT.
-    Days with no trades are included (the equity remains unchanged).
-    The horizontal axis is transformed to represent weeks.
-    """
     df = trades_df.copy()
-    # Convert CLOSE DATE to a proper datetime containing only the date portion.
+    # Convert CLOSE DATE to a proper datetime (only date portion)
     df['DATE'] = pd.to_datetime(df['CLOSE DATE'].dt.date)
     
-    # Group by date and sum NET PROFIT
+    # Group by date: sum NET PROFIT for equity and count trades for volume
     daily_profit = df.groupby('DATE')['NET PROFIT'].sum().sort_index()
-    
+    daily_volume = df.groupby('DATE').size().sort_index()  # number of trades per day
+
     # Create a complete date range from the first to last date.
-    all_dates = pd.date_range(start=daily_profit.index.min(), end=daily_profit.index.max(), freq='D')
+    all_dates = pd.date_range(start=daily_profit.index.min(),
+                              end=daily_profit.index.max(), freq='D')
     daily_profit = daily_profit.reindex(all_dates, fill_value=0)
+    daily_volume = daily_volume.reindex(all_dates, fill_value=0)
     
-    # Compute cumulative equity (carry forward equity on days with no trades)
+    # Compute cumulative equity (carry forward on days with no trades)
     cumulative_equity = daily_profit.cumsum()
     
     # Transform dates to week numbers: 1 + (days since start)/7 (fractional values)
     start_date = cumulative_equity.index[0]
     x_values = 1 + (cumulative_equity.index - start_date).days / 7
     
-    plt.figure(figsize=(10, 6))
+    # Create the figure and a twin axis for volume
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+    ax2 = ax1.twinx()
     
-    # Define a muted blue color and use larger dots
-    muted_blue = "#4a90e2"
-    #plt.scatter(x_values, cumulative_equity.values, color=muted_blue, s=150)
-    plt.plot(x_values, cumulative_equity.values, marker='o', markersize=12, linestyle='-', color=muted_blue)
+    # Adjust z-orders: make ax1 (the equity axis) drawn above ax2.
+    ax1.set_zorder(2)
+    ax1.patch.set_visible(False)  # Hide ax1 background so ax2 shows through if needed.
+    ax2.set_zorder(1)
     
-    # Set axis labels with increased font sizes
-    plt.xlabel("Week", fontsize=21)
-    plt.ylabel("Equity ($)", fontsize=21)
+    # Define colors
+    muted_blue = "#4a90e2"     # Equity color
+    light_grey = "#D3D3D3"     # Volume color
+
+    # Plot the volume bars on the right y-axis (ax2)
+    bar_width = 0.1  # adjust bar width as needed
+    ax2.bar(x_values, daily_volume.values, width=bar_width, color=light_grey,
+            alpha=0.5, zorder=1)
+    ax2.set_ylabel("Number of Trades", fontsize=21, color=light_grey)
+    ax2.tick_params(axis='y', labelsize=21, colors=light_grey)
     
+    # Plot the equity curve on the left y-axis (ax1)
+    ax1.plot(x_values, cumulative_equity.values, marker='o', markersize=12,
+             linestyle='-', color=muted_blue, zorder=2)
+    ax1.set_xlabel("Week", fontsize=21)
+    ax1.set_ylabel("Equity ($)", fontsize=21, color=muted_blue)
+    ax1.tick_params(axis='x', labelsize=21)
+    ax1.tick_params(axis='y', labelsize=21, colors=muted_blue)
+
     # Set x-ticks at integer week values
     max_week = math.ceil(x_values.max())
     ticks = np.arange(1, max_week + 1)
-    plt.xticks(ticks=ticks, fontsize=21)
-    plt.yticks(fontsize=21)
+    ax1.set_xticks(ticks)
     
-    # Remove grid lines and omit a chart title.
     plt.tight_layout()
-    
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight")
-    plt.close()
+    plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode("utf-8")
-
+    
 def generate_trade_return_histogram(df):
     plt.figure(figsize=(10,6))
     plt.hist(df["RETURN"], bins=20, edgecolor="black")
