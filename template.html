@@ -3,51 +3,175 @@
 <head>
   <meta charset="UTF-8">
   <title>Comprehensive Trading Performance Report</title>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+
   <style>
+    :root {
+      --primary-color: #6b9080;
+      --primary-accent: #8fbcb9;
+      --neutral-bg: #f4f7f6;
+      --neutral-text: #333;
+      --table-header-bg: #8fbcb9;
+      --table-header-text: #fff;
+      --highlight-row-bg: #fafdfc;
+      --hover-row-bg: #f1f6f5;
+      --card-bg: #fff;
+      --shadow-color: rgba(0, 0, 0, 0.1);
+      --positive-color: #58a15f;
+      --negative-color: #c94c4c;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
     body { 
-      font-family: Arial, sans-serif; 
-      background-color: #f4f7f6; 
-      color: #333; 
+      font-family: 'Open Sans', Arial, sans-serif; 
+      background-color: var(--neutral-bg); 
+      color: var(--neutral-text); 
+      line-height: 1.6;
       padding: 20px; 
     }
-    h1, h2 { 
-      text-align: center; 
-      color: #6b9080; 
+
+    .top-nav {
+      background-color: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 999;
+      box-shadow: 0 1px 5px var(--shadow-color);
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      padding: 10px;
+      margin-bottom: 20px;
     }
-    table { 
-      border-collapse: collapse; 
+    .top-nav a {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 4px;
+    }
+    .top-nav a:hover {
+      background-color: var(--highlight-row-bg);
+    }
+
+    h1, h2, h3 { 
+      text-align: center; 
+      color: var(--primary-color); 
+      margin-bottom: 15px;
+    }
+
+    .section { 
+      margin: 40px auto; 
+      max-width: 1200px; 
+    }
+
+    .report-banner {
+      text-align: center;
+      margin-bottom: 25px;
+      font-size: 1.1rem;
+    }
+    .report-banner p {
+      margin: 5px 0;
+      color: var(--neutral-text);
+    }
+
+    /* 2×4 card grid for Overall Performance */
+    .metrics-container {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(2, auto);
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .metric-card {
+      background-color: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: 0 2px 5px var(--shadow-color);
+      text-align: center;
+      padding: 15px;
+    }
+    .metric-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--primary-color);
+      font-size: 1rem;
+    }
+    .metric-value {
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: var(--neutral-text);
+    }
+
+    /* Tables in rounded boxes with smaller row hover effect */
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
       width: 90%; 
       margin: 20px auto; 
+      background-color: #fff; 
+      box-shadow: 0 2px 5px var(--shadow-color);
+      border-radius: 8px;
+      overflow: hidden;
     }
-    th, td { 
-      border: 1px solid #ddd; 
-      padding: 8px; 
-      text-align: center; 
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
     }
-    th { 
-      background-color: #8fbcb9; 
-      color: white; 
+    th {
+      background-color: var(--table-header-bg);
+      color: var(--table-header-text);
+      font-weight: 600;
     }
-    tr:nth-child(even) { 
-      background-color: #f9fbfa; 
+    tr:nth-child(even) {
+      background-color: var(--highlight-row-bg);
     }
-    .section { 
-      margin: 40px 0; 
+    tr:hover {
+      background-color: var(--hover-row-bg);
     }
-    .chart { 
-      text-align: center; 
-      margin: 10px auto; 
+
+    /* Chart grids and cards */
+    .chart-grid {
+      display: grid;
+      gap: 20px;
+      margin: 20px auto;
+      max-width: 1200px;
     }
-    /* Restore specific sizing for equity and histogram charts */
-    .equity-chart img { 
-      width: 45%; 
-      margin: 10px; 
+    .chart-card {
+      background-color: var(--card-bg);
+      box-shadow: 0 2px 5px var(--shadow-color);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
     }
-    /* Feature plots at 100% within their containers */
-    .feature-plot img {
-      width: 100%; 
-      height: auto; 
+    .chart-card img {
+      width: 100%;
+      height: auto;
+      border-radius: 5px;
     }
+
+    .features-grid {
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(2, auto);
+    }
+
+    /* Limit the 'Win Rate by Symbol' chart to half container width */
+    .chart-card--half {
+      max-width: 50%;
+      margin: 0 auto;
+    }
+
+    /* Smaller font for the Individual Trades table and horizontal scroll if needed */
+    #individual-trades table {
+      font-size: 0.85rem;
+    }
+    #individual-trades {
+      overflow-x: auto; 
+    }
+
     footer { 
       text-align: center; 
       margin-top: 40px; 
@@ -57,53 +181,59 @@
   </style>
 </head>
 <body>
+  <!-- Sticky navigation links to sections -->
+  <nav class="top-nav">
+    <a href="#performance-metrics">Performance</a>
+    <a href="#weekly-performance">Weekly</a>
+    <a href="#visualizations">Equity & Returns</a>
+    <a href="#trade-factor-analysis">Analysis</a>
+    <a href="#open-positions">Open Positions</a>
+    <a href="#individual-trades">Trades</a>
+  </nav>
+
   <h1>Comprehensive Trading Performance Report</h1>
+
+  <div class="report-banner">
+    <p>Reporting Period: {{ Start_Date }} - {{ End_Date }}</p>
+  </div>
   
-  <!-- Overall Performance Summary Section -->
+  <!-- Overall Performance Summary Section (2x4 grid) -->
   <div class="section" id="performance-metrics">
     <h2>Overall Performance</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Metric</th>
-          <th>Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Total Trades</td>
-          <td>{{ Total_Trades }}</td>
-        </tr>
-        <tr>
-          <td>Net Profit ($)</td>
-          <td>{{ Net_Profit }}</td>
-        </tr>
-        <tr>
-          <td>Average Trade Return</td>
-          <td>{{ Avg_Trade_Return }}</td>
-        </tr>
-        <tr>
-          <td>Win Rate (%)</td>
-          <td>{{ Win_Rate }}</td>
-        </tr>
-        <tr>
-          <td>Sharpe Ratio</td>
-          <td>{{ Sharpe_Ratio }}</td>
-        </tr>
-        <tr>
-          <td>Adjusted Sortino</td>
-          <td>{{ adjusted_sortino }}</td>
-        </tr>
-        <tr>
-          <td>Max Drawdown (%)</td>
-          <td>{{ Max_Drawdown }}</td>
-        </tr>
-        <tr>
-          <td>Volatility</td>
-          <td>{{ Volatility }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="metrics-container">
+      <div class="metric-card">
+        <div class="metric-title">Total Trades</div>
+        <div class="metric-value">{{ Total_Trades }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Net Profit ($)</div>
+        <div class="metric-value">{{ Net_Profit }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Avg Trade Return</div>
+        <div class="metric-value">{{ Avg_Trade_Return }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Win Rate (%)</div>
+        <div class="metric-value">{{ Win_Rate }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Sharpe Ratio</div>
+        <div class="metric-value">{{ Sharpe_Ratio }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Adjusted Sortino</div>
+        <div class="metric-value">{{ adjusted_sortino }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Max Drawdown (%)</div>
+        <div class="metric-value">{{ Max_Drawdown }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Volatility</div>
+        <div class="metric-value">{{ Volatility }}</div>
+      </div>
+    </div>
   </div>
   
   <!-- Weekly Performance Section -->
@@ -113,56 +243,46 @@
   </div>
   
   <!-- Equity Curve and Visualizations Section -->
-  <div class="section equity-chart" id="visualizations">
+  <div class="section" id="visualizations">
     <h2>Equity & Returns</h2>
-    <div class="chart">
-      <img src="data:image/png;base64,{{ Equity_Curve }}" alt="Equity Curve">
-      <img src="data:image/png;base64,{{ Trade_Return_Histogram }}" alt="Trade Return Histogram">
+    <div class="chart-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="chart-card">
+        <img src="data:image/png;base64,{{ Equity_Curve }}" alt="Equity Curve">
+      </div>
+      <div class="chart-card">
+        <img src="data:image/png;base64,{{ Trade_Return_Histogram }}" alt="Trade Return Histogram">
+      </div>
     </div>
   </div>
   
   <!-- Trade Factor Analysis Section -->
   <div class="section" id="trade-factor-analysis">
     <h2>Trade Factor Analysis</h2>
-    
-    <!-- Win Rate by Symbol Chart -->
-    <div class="chart">
-      <img src="data:image/png;base64,{{ Win_Rate_By_Symbol }}" alt="Win Rate by Symbol">
+
+    <!-- Win Rate by Symbol in its own single-column grid, half width -->
+    <div class="chart-grid" style="grid-template-columns: 1fr;">
+      <div class="chart-card chart-card--half">
+        <img src="data:image/png;base64,{{ Win_Rate_By_Symbol }}" alt="Win Rate by Symbol">
+      </div>
     </div>
 
-    <!-- Existing Nx2 Grid Feature Plots -->
-    <table style="width:90%; margin:auto; border:none;">
-      {% set features = Feature_Plots.keys() | list %}
-      {% for i in range(0, features|length, 2) %}
-      <tr>
-        <td style="width:50%; padding:10px; border:none; vertical-align:top;">
-          <div class="feature-plot chart">
-            <img src="data:image/png;base64,{{ Feature_Plots[features[i]] }}" alt="Plot for {{ features[i] }}">
-          </div>
-        </td>
-
-        {% if i + 1 < features|length %}
-        <td style="width:50%; padding:10px; border:none; vertical-align:top;">
-          <div class="feature-plot chart">
-            <img src="data:image/png;base64,{{ Feature_Plots[features[i + 1]] }}" alt="Plot for {{ features[i + 1] }}">
-          </div>
-        </td>
-        {% else %}
-        <td style="width:50%; padding:10px; border:none;"></td>
-        {% endif %}
-      </tr>
+    <!-- Feature Plots (3×2 grid) -->
+    <div class="chart-grid features-grid">
+      {% for feature, plot_data in Feature_Plots.items() %}
+      <div class="chart-card">
+        <img src="data:image/png;base64,{{ plot_data }}" alt="Plot for {{ feature }}">
+      </div>
       {% endfor %}
-    </table>
+    </div>
   </div>
 
-  
   <!-- Open Positions Section -->
   <div class="section" id="open-positions">
     <h2>Open Positions & Exposure</h2>
     {{ Open_Positions | safe }}
   </div>
   
-  <!-- Individual Trades Section -->
+  <!-- Individual Trades Section (smaller font) -->
   <div class="section" id="individual-trades">
     <h2>Individual Trades</h2>
     {{ Individual_Trades | safe }}
