@@ -22,6 +22,8 @@ Icon?
 *.tmp
 
 # Activity and generated CSV files
+ally.txt
+IB.txt
 activity.txt
 transactions.csv
 trades.csv
