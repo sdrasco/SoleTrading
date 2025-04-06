@@ -1,0 +1,249 @@
+﻿Statement,Header,Field Name,Field Value
+Statement,Data,BrokerName,Interactive Brokers (U.K.) Limited
+Statement,Data,BrokerAddress,"20 Fenchurch Street, Floor 12, London EC3M 3BY, UK. Authorised and regulated by the Financial Conduct Authority"
+Statement,Data,Title,Activity Statement
+Statement,Data,Period,"April 4, 2025"
+Statement,Data,WhenGenerated,"2025-04-05, 06:28:07 EDT"
+Account Information,Header,Field Name,Field Value
+Account Information,Data,Name,Steven C Drasco
+Account Information,Data,Account,U18763497
+Account Information,Data,Account Type,Individual
+Account Information,Data,Customer Type,Individual
+Account Information,Data,Account Capabilities,Cash
+Account Information,Data,Base Currency,USD
+Net Asset Value,Header,Asset Class,Prior Total,Current Long,Current Short,Current Total,Change
+Net Asset Value,Data,Cash ,2000,2204.422655,0,2204.422655,204.422655
+Net Asset Value,Data,Options,0,295.5,0,295.5,295.5
+Net Asset Value,Data,Total,2000,2499.922655,0,2499.922655,499.922655
+Net Asset Value,Header,Time Weighted Rate of Return
+Net Asset Value,Data,-0.0030938%
+Change in NAV,Header,Field Name,Field Value
+Change in NAV,Data,Starting Value,2000
+Change in NAV,Data,Mark-to-Market,6.5
+Change in NAV,Data,Deposits & Withdrawals,500
+Change in NAV,Data,Commissions,-6.577345
+Change in NAV,Data,Ending Value,2499.922655
+Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity,Prior Price,Current Price,Mark-to-Market P/L Position,Mark-to-Market P/L Transaction,Mark-to-Market P/L Commissions,Mark-to-Market P/L Other,Mark-to-Market P/L Total,Code
+Mark-to-Market Performance Summary,Data,Equity and Index Options,CAT 17APR25 250 P,0,1,--,2.9550,0,-96.5,-1.05725,0,-97.55725,
+Mark-to-Market Performance Summary,Data,Equity and Index Options,NKE 02MAY25 51 P,0,0,--,1.5449,0,10,-1.623545,0,8.376455,
+Mark-to-Market Performance Summary,Data,Equity and Index Options,SPY 25APR25 475 P,0,0,--,9.7250,0,60,-1.77675,0,58.22325,
+Mark-to-Market Performance Summary,Data,Equity and Index Options,XLF 17APR25 49.5 P,0,0,--,5.3413,0,33,-2.1198,0,30.8802,
+Mark-to-Market Performance Summary,Data,Total,,,,,,0,6.5,-6.577345,0,-0.077345,
+Mark-to-Market Performance Summary,Data,Forex,USD,2000,2204.422655,1.0000,1.0000,0,0,0,0,0,
+Mark-to-Market Performance Summary,Data,Total,,,,,,0,0,0,0,0,
+Mark-to-Market Performance Summary,Data,Total (All Assets),,,,,,0,6.5,-6.577345,0,-0.077345,
+Realized & Unrealized Performance Summary,Header,Asset Category,Symbol,Cost Adj.,Realized S/T Profit,Realized S/T Loss,Realized L/T Profit,Realized L/T Loss,Realized Total,Unrealized S/T Profit,Unrealized S/T Loss,Unrealized L/T Profit,Unrealized L/T Loss,Unrealized Total,Total,Code
+Realized & Unrealized Performance Summary,Data,Equity and Index Options,CAT 17APR25 250 P,0,0,0,0,0,0,0,-97.55725,0,0,-97.55725,-97.55725,
+Realized & Unrealized Performance Summary,Data,Equity and Index Options,NKE 02MAY25 51 P,0,8.376455,0,0,0,8.376455,0,0,0,0,0,8.376455,
+Realized & Unrealized Performance Summary,Data,Equity and Index Options,SPY 25APR25 475 P,0,58.22325,0,0,0,58.22325,0,0,0,0,0,58.22325,
+Realized & Unrealized Performance Summary,Data,Equity and Index Options,XLF 17APR25 49.5 P,0,30.8802,0,0,0,30.8802,0,0,0,0,0,30.8802,
+Realized & Unrealized Performance Summary,Data,Total,,0,97.479905,0,0,0,97.479905,0,-97.55725,0,0,-97.55725,-0.077345,
+Realized & Unrealized Performance Summary,Data,Total (All Assets),,0,97.479905,0,0,0,97.479905,0,-97.55725,0,0,-97.55725,-0.077345,
+Notes,This statement uses wash sales P/L for realized and unrealized P/L calculations.
+Month & Year to Date Performance Summary,Header,Asset Category,Symbol,Description,Mark-to-Market MTD,Mark-to-Market YTD,Realized S/T MTD,Realized S/T YTD,Realized L/T MTD,Realized L/T YTD
+Month & Year to Date Performance Summary,Data,Equity and Index Options,CAT   250417P00250000,CAT 17APR25 250 P,-97.55725,-97.55725,0,0,0,0
+Month & Year to Date Performance Summary,Data,Equity and Index Options,NKE   250502P00051000,NKE 02MAY25 51 P,8.376455,8.376455,8.376455,8.376455,0,0
+Month & Year to Date Performance Summary,Data,Equity and Index Options,SPY   250425P00475000,SPY 25APR25 475 P,58.22325,58.22325,58.22325,58.22325,0,0
+Month & Year to Date Performance Summary,Data,Equity and Index Options,XLF   250417P00049500,XLF 17APR25 49.5 P,30.8802,30.8802,30.8802,30.8802,0,0
+Month & Year to Date Performance Summary,Data,Total,,,-0.077345,-0.077345,97.479905,97.479905,0,0
+Month & Year to Date Performance Summary,Data,Total (All Assets),,,-0.077345,-0.077345,97.479905,97.479905,0,0
+Cash Report,Header,Currency Summary,Currency,Total,Securities,Futures,Month to Date,Year to Date,
+Cash Report,Data,Starting Cash,Base Currency Summary,2000,2000,0,,,
+Cash Report,Data,Commissions,Base Currency Summary,-6.577345,-6.577345,0,-6.577345,-6.577345,
+Cash Report,Data,Deposits,Base Currency Summary,500,500,0,2500,2500,
+Cash Report,Data,Trades (Sales),Base Currency Summary,1375,1375,0,1375,1375,
+Cash Report,Data,Trades (Purchase),Base Currency Summary,-1664,-1664,0,-1664,-1664,
+Cash Report,Data,Ending Cash,Base Currency Summary,2204.422655,2204.422655,0,,,
+Cash Report,Data,Ending Settled Cash,Base Currency Summary,2493.422655,2493.422655,0,,,
+Open Positions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Quantity,Mult,Cost Price,Cost Basis,Close Price,Value,Unrealized P/L,Unrealized P/L %,Code
+Open Positions,Data,Summary,Equity and Index Options,USD,CAT 17APR25 250 P,1,100,3.9305725,393.05725,2.955,295.5,-97.55725,-24.82,
+Open Positions,Total,,Equity and Index Options,USD,,,,,393.05725,,295.5,-97.55725,,
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Realized P/L %,MTM P/L,Code
+Trades,Data,Order,Equity and Index Options,USD,CAT 17APR25 250 P,"2025-04-04, 10:53:04",1,3.92,2.955,-392,-1.05725,393.05725,0,0,-96.5,O
+Trades,SubTotal,,Equity and Index Options,USD,CAT 17APR25 250 P,,1,,,-392,-1.05725,393.05725,0,0.00,-96.5,
+Trades,Data,Order,Equity and Index Options,USD,NKE 02MAY25 51 P,"2025-04-04, 10:15:02",1,2.15,1.5449,-215,-0.80725,215.80725,0,0,-60.51,O
+Trades,Data,Order,Equity and Index Options,USD,NKE 02MAY25 51 P,"2025-04-04, 10:18:06",-1,2.25,1.5449,225,-0.816295,-215.80725,8.376455,3.881452083,70.51,C
+Trades,SubTotal,,Equity and Index Options,USD,NKE 02MAY25 51 P,,0,,,10,-1.623545,0,8.376455,3.88,10,
+Trades,Data,Order,Equity and Index Options,USD,SPY 25APR25 475 P,"2025-04-04, 10:29:36",1,6.4,9.725,-640,-0.70725,640.70725,0,0,332.5,O
+Trades,Data,Order,Equity and Index Options,USD,SPY 25APR25 475 P,"2025-04-04, 10:44:48",-1,7,9.725,700,-1.0695,-640.70725,58.22325,9.087340591,-272.5,C
+Trades,SubTotal,,Equity and Index Options,USD,SPY 25APR25 475 P,,0,,,60,-1.77675,0,58.22325,9.09,60,
+Trades,Data,Order,Equity and Index Options,USD,XLF 17APR25 49.5 P,"2025-04-04, 11:11:47",1,4.17,5.3413,-417,-1.05725,418.05725,0,0,117.13,O
+Trades,Data,Order,Equity and Index Options,USD,XLF 17APR25 49.5 P,"2025-04-04, 11:31:09",-1,4.5,5.3413,450,-1.06255,-418.05725,30.8802,7.386595975,-84.13,C
+Trades,SubTotal,,Equity and Index Options,USD,XLF 17APR25 49.5 P,,0,,,33,-2.1198,0,30.8802,7.39,33,
+Trades,Total,,Equity and Index Options,USD,,,,,,-289,-6.577345,393.05725,97.479905,,6.5, 
+Deposits & Withdrawals,Header,Currency,Settle Date,Description,Amount
+Deposits & Withdrawals,Data,USD,2025-04-04,Electronic Fund Transfer,500
+Deposits & Withdrawals,Data,Total,,,500
+Financial Instrument Information,Header,Asset Category,Symbol,Description,Conid,Underlying,Listing Exch,Multiplier,Expiry,Delivery Month,Type,Strike,Code
+Financial Instrument Information,Data,Equity and Index Options,CAT   250417P00250000,CAT 17APR25 250 P,754112143,CAT,CBOE,100,2025-04-17,2025-04,P,250,
+Financial Instrument Information,Data,Equity and Index Options,NKE   250502P00051000,NKE 02MAY25 51 P,773826674,NKE,CBOE,100,2025-05-02,2025-05,P,51,
+Financial Instrument Information,Data,Equity and Index Options,SPY   250425P00475000,SPY 25APR25 475 P,767017005,SPY,CBOE,100,2025-04-25,2025-04,P,475,
+Financial Instrument Information,Data,Equity and Index Options,XLF   250417P00049500,XLF 17APR25 49.5 P,770822543,XLF,CBOE,100,2025-04-17,2025-04,P,49.5,
+Codes,Header,Code,Meaning,Code (Cont.),Meaning (Cont.)
+Codes,Data,A,Assignment
+Codes,Data,ADR,ADR Fee Accrual
+Codes,Data,AEx,Automatic exercise for dividend-related recommendation.
+Codes,Data,AFx,AutoFX conversion resulting from trading
+Codes,Data,Adj,Adjustment
+Codes,Data,Al,Allocation
+Codes,Data,Aw,Away Trade
+Codes,Data,B,Automatic Buy-in
+Codes,Data,Bo,Direct Borrow
+Codes,Data,C,Closing Trade
+Codes,Data,CD,Cash Delivery
+Codes,Data,CP,Complex Position
+Codes,Data,Ca,Cancelled
+Codes,Data,Co,Corrected Trade
+Codes,Data,Cx,Part or all of this transaction was a Crossing executed as dual agent by IB for two IB customers
+Codes,Data,DT,Discounted Trade
+Codes,Data,De,Delivery or Conversion Action
+Codes,Data,ETF,ETF Creation/Redemption
+Codes,Data,Ep,Resulted from an Expired Position
+Codes,Data,Ex,Exercise
+Codes,Data,FP,The fractional portion of this trade was executed against IB or an affiliate.
+Codes,Data,FPA,The fractional portion of this trade was executed against IB or an affiliate. IB acted as agent for the whole share portion of this trade.
+Codes,Data,G,Trade in Guaranteed Account Segment
+Codes,Data,GEA,Exercise or Assignment resulting from offsetting positions
+Codes,Data,HC,Highest Cost tax basis election
+Codes,Data,HFI,Investment Transferred to Hedge Fund
+Codes,Data,HFR,Redemption from Hedge Fund
+Codes,Data,I,Internal Transfer
+Codes,Data,IA,The transaction was executed against IB or an affiliate
+Codes,Data,IM,A portion of the order was executed against IB or an affiliate; IB acted as agent on a portion.
+Codes,Data,INV,Investment Transfer from Investor
+Codes,Data,IPO,This transaction was executed as part of an IPO in which IB was a member of the selling group and is classified as a Principal trade.
+Codes,Data,L,Ordered by IB (Margin Violation)
+Codes,Data,LD,Adjusted by Loss Disallowed from Wash Sale
+Codes,Data,LI,"Last In, First Out (LIFO) tax basis election"
+Codes,Data,LT,Long Term P/L
+Codes,Data,Lo,Direct Loan
+Codes,Data,M,Entered manually by IB
+Codes,Data,MEx,Manual exercise for dividend-related recommendation.
+Codes,Data,ML,Maximize Losses tax basis election
+Codes,Data,MLG,Maximize Long Term Gain tax basis election
+Codes,Data,MLL,Maximize Long Term Loss tax basis election
+Codes,Data,MSG,Maximize Short Term Gain tax basis election
+Codes,Data,MSL,Maximize Short Term Loss tax basis election
+Codes,Data,O,Opening Trade
+Codes,Data,Off,Yes and No contracts offset to $1.00 cash settlement
+Codes,Data,P,Partial Execution
+Codes,Data,PE,Perpetual Investment
+Codes,Data,PI,Price Improvement
+Codes,Data,PTA,Post Trade Allocation
+Codes,Data,Po,Interest or Dividend Accrual Posting
+Codes,Data,Pr,Part or all of this transaction was executed by the Exchange as a Crossing by IB against an IB affiliate and is therefore classified as a Principal and not an agency trade
+Codes,Data,R,Dividend Reinvestment
+Codes,Data,RED,Redemption to Investor
+Codes,Data,RI,Recurring Investment
+Codes,Data,RP,"IB acted as agent for the fractional share portion of this trade, which was executed by an IB affiliate as riskless principal."
+Codes,Data,RPA,IB acted as agent for both the fractional share portion and the whole share portion of this trade; the fractional share portion was executed by an IB Affiliate as riskless principal.
+Codes,Data,Rb,Rebill
+Codes,Data,Re,Interest or Dividend Accrual Reversal
+Codes,Data,Ri,Reimbursement
+Codes,Data,S0,Contract settled to zero value
+Codes,Data,S1,Contract settled to $1.00
+Codes,Data,SF,Trade is subject to IBKR Lite Surcharge Fee if volume of such trades exceeds 10% of the total monthly Lite trade volume
+Codes,Data,SI,This order was solicited by Interactive Brokers
+Codes,Data,SL,Specific Lot tax basis election
+Codes,Data,SO,This order was marked as solicited by your Introducing Broker
+Codes,Data,SS,Customer designated this trade for shortened settlement and so is subject to execution at prices above the prevailing market
+Codes,Data,ST,Short Term P/L
+Codes,Data,T,Transfer
+Codes,Data,Un,Unvested shares from stock grant
+Codes,Data,XCH,Mutual Fund Exchange Transaction
+"Location of Customer Assets, Positions and Money",Header,Asset Category,Country,CSD,Custodian
+"Location of Customer Assets, Positions and Money",Data,Stocks,Australia,Australian Clearing House and Electronic Sub-register System (CHESS),Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Austria,Österreichische Kontrollbank (OEKB),Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Belgium,Euroclear,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Canada,Clearing and Depository Services Inc (CDS),Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,France,Euroclear,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Germany,Clearstream,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Hong Kong,Hong Kong Securities Clearing Corporation Ltd. (HKSCC),Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Italy,Monte Titoli,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Japan,Japan Securities Depository Inc. (JASDEC),Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Mexico,SD Indeval,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Netherlands,Euroclear,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Norway,VP,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Singapore,The Central Depository (Pte) Limited (CDP),Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Spain,Servicio de Compensacion y Liquidacion de Valores (SCLV),Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Sweden,Värdepapperscentralen (VPC),Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,Switzerland,Sega Intersettle - SIS,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,United Kingdom,Crest,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Data,Stocks,United States,Depository Trust Company,Interactive Brokers LLC
+"Location of Customer Assets, Positions and Money",Header,Asset Category,Country,Clearing House
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Australia,Australian Clearing House and Electronic Sub-register System (CHESS),
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Belgium,LCH Clearnet SA,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Canada,Canadian Derivatives Clearing Corporation (CDCC),
+"Location of Customer Assets, Positions and Money",Data,Derivatives,France,LCH Clearnet SA,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Germany,Eurex CCP,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Hong Kong,HKFE Clearing Corporation Limited (HKCC) / The SEHK Options Clearing House Limited (SEOCH),
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Italy,"Cassa di Compensazione & Caranzia, Rome",
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Japan,OSE & JSCC Clearing Systems (to be merged into JSCC Clearing System in Nov 2014),
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Mexico,SD Indeval,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Netherlands,LCH Clearnet SA,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Norway,LCH Clearnet SA,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Singapore,Singapore Exchange Derivatives Clearing (SGX-DC),
+"Location of Customer Assets, Positions and Money",Data,Derivatives,South Korea,Korea Exchange (KRX) Clearing House,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Spain,MEFF,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Sweden,OMX,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,Switzerland,Eurex CCP,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,United Kingdom,ICE Clear Europe,
+"Location of Customer Assets, Positions and Money",Data,Derivatives,United States,Depository Trust Company,
+"Location of Customer Assets, Positions and Money",Header,Account Type,Account
+"Location of Customer Assets, Positions and Money",Data,Client Money Bank Accounts,Bank of America
+"Location of Customer Assets, Positions and Money",Data,Client Money Bank Accounts,Barclays
+"Location of Customer Assets, Positions and Money",Data,Client Money Bank Accounts,BNP
+"Location of Customer Assets, Positions and Money",Data,Client Money Bank Accounts,Citibank
+"Location of Customer Assets, Positions and Money",Data,Client Money Bank Accounts,RBC
+"Location of Customer Assets, Positions and Money",Data,Client Money Bank Accounts,SEB
+"Location of Customer Assets, Positions and Money",Header,Account Type,Account
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,ABN Amro
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,BNP
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,"Holland Clearing House ""HCH"""
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,IBHK
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,IBSJ
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,"ICE Clear Europe ""ICE EU"""
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,"London Clearing House ""LCH"""
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,MEFF
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,Shinhan
+"Location of Customer Assets, Positions and Money",Data,Client Transaction Accounts,THE
+"Location of Customer Assets, Positions and Money",Header,Account Type,Account
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,Branch Banking and Trust Company
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,Bank of the West
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,"Citibank, N.A."
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,Fifth Third Bank
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,"HSBC Bank USA, N.A."
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,"JPMorgan Chase Bank, N.A."
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,KeyBank National Association
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,Manufacturers and Traders Trust Company (M&T Bank)
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,Standard Chartered Bank
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,SunTrust Bank
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,The Bank of Nova Scotia
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,"US Bank, N.A."
+"Location of Customer Assets, Positions and Money",Data,Special US Reserve Accounts,"Wells Fargo, N.A."
+Notes/Legal Notes,Header,Type,Note
+Notes/Legal Notes,Data,Notes,"Stock exchange transactions generally settle on the trade date plus one business day (T+1). Options, futures and US open-end mutual fund transactions also settle on trade date plus one business day. Some exchanges and other transaction types may have longer or shorter settlement periods. Ending settled cash reflects the cash that has actually settled."
+Notes/Legal Notes,Data,Notes,Initial and maintenance margin requirements are available within the Account Window of the Trader Workstation.
+Notes/Legal Notes,Data,Notes,"Quantities preceded by a ""-"" sign indicate sell transactions. Other transactions are purchases. "
+Notes/Legal Notes,Data,Notes,"IBUK acts as agent in executing the fractional share portion of your order. In certain circumstances, IBUK routes the fractional portion of your order to an affiliate, which may execute the fractional portion of the order as principal. In such circumstances, this is indicated by the codes associated with the trade. If an IBUK affiliate acts as principal in executing any fractional share portion of your order, the order will be executed at the price displayed for the opposite side of the NBBO from your order (the offer if you are buying and the bid if you are selling) at the time of execution. If an IBUK affiliate is acting as riskless principal in connection with filling the fractional share portion of your order, the affiliate will execute the fractional share portion of your order at the price it receives for the execution of the whole share."
+Notes/Legal Notes,Data,Notes,"In case of partial executions, commissions are charged on the total quantity executed on the original order. The commission is displayed on the first partial execution only."
+Notes/Legal Notes,Data,Notes,Trade execution times are displayed in Eastern Time.
+Notes/Legal Notes,Data,Notes,"Further description of our services, costs and charges is available on our website: https://gdcdyn.interactivebrokers.com/Universal/servlet/Registration_v2.formSampleView?formdb=4378"
+Notes/Legal Notes,Data,Notes,"Borrow Fee Rate represents the cost to borrow stock expressed in percent per annum. It is applied to the collateral value on the stock borrow contract and is separate from any interest earned on credit cash balances. Similarly, Loan Fee Rate represents the benefit to lend stock. A positive rate indicates a cost to the borrower/benefit to the lender and a negative rate indicates a benefit to the borrower/cost to the lender. In general, the fee rates for hard-to-borrow stocks are higher than for normal availability stocks."
+Notes/Legal Notes,Data,Notes,Interest Rate on Customer Collateral represents the interest paid on the collateral posted to the customer's account and received from lending stock.  A positive rate indicates a benefit to the lender.
+Notes/Legal Notes,Data,Notes,"The closing prices on this Activity Statement are indicative and may come from third-party sources. Interactive Brokers does not warrant the accuracy of the prices provided by third-party sources. Due to time zone differences, certain non-US mutual funds may deliver closing prices after the Activity Statement has been produced and the closing prices for such funds will reflect the previous day's price."
+Notes/Legal Notes,Data,Notes,All Market Data and Research services are provided through Global Financial Information Services (GmbH).
+Notes/Legal Notes,Data,Notes,"Market data is provided by Global Financial Information Services (GmbH). Your local broker collects amounts owed for fees and tax for such data on behalf of Global Financial Information Services (GmbH). Note, you are responsible for any applicable taxes relating to the provision of these services."
+Notes/Legal Notes,Data,Notes,"All client funds and client financial instruments (Client Assets) on this statement are protected according to the FCA’s CASS rules, except where indicated otherwise."
+Notes/Legal Notes,Data,Notes,RUS denotes Ruble balances that have been restricted by Russian authorities.
+Notes/Legal Notes,Data,Mutual Fund Notes,"All purchase and sales of mutual funds are calculated against the published NAV (Net Asset Value) of the underlying fund and is displayed on this confirmation as the ""C. Price"" (Closing Price). Due to any fees charged by a fund and/or any share rounding, the net price you pay may vary from the published NAV and is shown on this confirmation as the ""T. Price"" (Trade Price)."
+Notes/Legal Notes,Data,Fixed Income Notes,"Call features for bonds or preferred stocks may affect the yield. For zero coupon, compound interest and multiplier securities, there are no periodic payments and securities may be callable below maturity value without notice to holder unless registered. For asset-backed securities, the actual yield may vary depending on the speed at which the underlying note is pre-paid. For additional information regarding bond yield, please contact the IBUK Help Desk at: ibkr.com/help. If this debt security is unrated by a nationally recognized statistical rating organization, it may pose a high risk of default. You should consult an independent advisor to determine whether unrated bonds are appropriate for your portfolio in light of your goals and your financial circumstances. Fees charged by bond trading centers are included in the cost of bond transactions."
+Notes/Legal Notes,Data,Legal Notes,"Please promptly report any inaccuracy or discrepancy in this Activity Statement to Interactive Brokers (U.K.) Limited ('IBUK'). You can contact the IBUK Customer Service team using the online form available on the IBUK website, www.ibkr.co.uk/support. You may also contact IBUK by telephone on  +44 207-710-5695, but if you report an error by telephone, you should re-confirm such oral communication in writing in order to protect your rights."
+Notes/Legal Notes,Data,Legal Notes,"Unless otherwise noted, Interactive Brokers acted as agent in the execution of the above transactions. For those exchanges where IBUK is not a direct clearing member or custodian, IBUK may use one of the following clearing agents or sub-custodians: Interactive Brokers Australia Pty Limited; Interactive Brokers Canada Inc.; Interactive Brokers Hong Kong Limited; Interactive Brokers Ireland, Limited; Interactive Brokers Securities Japan, Inc.; IBKR Financial Services AG; ABN Amro Clearing Singapore Pte. Ltd.; BBVA Bancomer, S.A.; BNP Securities Services, Milan Branch; BMO Harris Bank N.A.; Citibank Europe plc; Skandinaviska Enskilda Banken AB (including select branches)."
+Notes/Legal Notes,Data,Legal Notes,"When executing foreign currency exchange transactions and CFDs, IBUK acts as agent or riskless principal. These transactions are executed against an IBUK affiliate, which acts as principal in such transactions and may have a long or short position and may have profited or lost in connection with the transaction."
+Notes/Legal Notes,Data,Legal Notes,"All VWAP trades are effected pursuant to an average price formula based on a reference price provided by a third-party data provider. Additional information and reference prices are available upon request.  IB, as agent, effects VWAP transactions through a market making affiliate, which acts as principal in such transactions and may have a long or short position in the security and may have profited or lost in connection with the transaction."
+Notes/Legal Notes,Data,Legal Notes,"IBUK routes orders in US products through IBLLC. IBLLC accepts liquidity rebates or other order flow payments from alternative trading systems, market makers and exchanges for certain orders in US stocks. IBLLC receives payment for some US option orders pursuant to exchange-mandated marketing fee programs or other arrangements."
+Notes/Legal Notes,Data,Legal Notes,"For security futures trades, if not already indicated on this statement, information about the time of any transaction, the identity of the counterparty to the transaction, and whether IBUK is acting as agent or principal, as agent for the counterparty, as agent for both parties to the contract, or as principal, and if acting as principal, whether the transaction was a block transaction or an exchange for physicals transaction, will be available upon written request of the customer."
+Notes/Legal Notes,Data,Legal Notes,Customer is requested to promptly advise Interactive Brokers of any material change in Customer's investment objectives or financial situation.
+Notes/Legal Notes,Data,Legal Notes,"A financial statement of Interactive Brokers (U.K.) Limited is available for your personal inspection at www.interactivebrokers.co.uk or at its offices, or a copy of it will be mailed upon your written request."
+Notes/Legal Notes,Data,Legal Notes,"Funds and assets of IBUK (U.K.) Limited customers are maintained at Interactive Brokers LLC, which is a member of SIPC.  As with all securities firms, SIPC coverage provides protection against failure of a broker-dealer, not against loss of market value of securities.  Futures and options on futures are not covered by SIPC."

@@ -75,7 +75,7 @@ def compute_kpis(df):
     cumulative = df_sorted["CUMULATIVE_NET_PROFIT"]
     running_max = cumulative.cummax()
     drawdown = (cumulative - running_max) / running_max.replace(0, np.nan)
-    max_drawdown_pct = drawdown.min() * 100
+    max_drawdown_pct = abs(drawdown.min() * 100)
 
     volatility = df["RETURN"].std()
     

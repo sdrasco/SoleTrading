@@ -14,7 +14,7 @@ from pathlib import Path
 
 class BaseBrokerParser(ABC):
     @abstractmethod
-    def parse_line(self, line: str):
+    def parse_row(self, row: list):
         """
         Must return a dict:
           {
@@ -28,71 +28,86 @@ class BaseBrokerParser(ABC):
             'fees': ...,
             'amount': ...
           }
-        or None if the line doesn't parse or isn't relevant.
+        or None if the row doesn't parse or isn't relevant.
         """
         pass
 
 
 class AllyParser(BaseBrokerParser):
     """
-    Parses lines from an ally.txt file (tab-delimited).
+    Parses rows from a tab-delimited ally.txt file.
+    Each row is like:
+      [
+        '03/28/2025', 'Sold To Close', '-1', 'QQQ Put', 
+        'QQQ Apr 04 2025 475.00 Put', '$10.04', '$0.50', '$0.07', '$1,003.43'
+      ]
+    We require at least 9 columns.
     """
 
-    def parse_line(self, line: str):
-        if not line.strip():
-            return None
-        parts = line.strip().split('\t')
-        if len(parts) < 9:
+    def parse_row(self, row: list):
+        # Skip empty or short rows
+        if len(row) < 9:
             return None
 
-        date, activity, qty, sym_or_type, description, price, commission, fees, amount = parts[:9]
+        date, activity, qty, sym_or_type, description, price, commission, fees, amount = row[:9]
 
+        # For "Cash Movement," deduce symbol differently
         if activity == "Cash Movement":
-            symbol = sym_or_type if "FULLYPAID LENDING REBATE" in description else ""
+            if "FULLYPAID LENDING REBATE" in description:
+                symbol = sym_or_type
+            else:
+                symbol = ""
         else:
             symbol = sym_or_type.split()[0]
 
         return {
-            'date': date,              # e.g. "03/28/2025"
-            'activity': activity,      # e.g. "Bought To Open"
-            'qty': qty,                # e.g. "1" or "-1"
-            'symbol': symbol,          # e.g. "TSLA"
-            'description': description,# e.g. "TSLA Apr 04 2025 475.00 Put"
-            'price': price,            # e.g. "$10.04"
-            'commission': commission,  # e.g. "$0.50"
-            'fees': fees,              # e.g. "$0.07"
-            'amount': amount           # e.g. "$1,003.43"
+            'date': date,
+            'activity': activity,
+            'qty': qty,
+            'symbol': symbol,
+            'description': description,
+            'price': price,
+            'commission': commission,
+            'fees': fees,
+            'amount': amount
         }
 
 
 class IBParser(BaseBrokerParser):
     """
-    Parses lines from an IB.txt file (tab-delimited), matching your 'Trades Data Order' lines.
+    Parses rows from a comma-delimited IB.csv file.
+    Each row might look like:
+      [
+        'Trades', 'Data', 'Order', 'Equity and Index Options', 'USD', 
+        'CAT 17APR25 250 P', '2025-04-04, 10:53:04', '1', '3.92', '2.955', 
+        '-392', '-1.05725', '393.05725', '0', '0', '-96.5', 'O'
+      ]
+    We require at least 17 columns. Only rows with [0]=='Trades', [1]=='Data', [2]=='Order' are relevant.
     """
 
-    def parse_line(self, line: str):
-        columns = line.strip().split('\t')
-        if len(columns) < 17:
+    def parse_row(self, row: list):
+        if len(row) < 17:
             return None
 
-        # The user-supplied data: only lines with columns[1] == 'Data' and columns[2] == 'Order' matter.
-        if columns[1] != 'Data' or columns[2] != 'Order':
+        # Check the first three columns
+        if row[0] != 'Trades' or row[1] != 'Data' or row[2] != 'Order':
             return None
 
-        symbol_full  = columns[5]   # e.g. "CAT 17APR25 250 P"
-        date_time    = columns[6]   # e.g. "2025-04-04, 10:53:04"
-        qty_str      = columns[7]   # e.g. "1" or "-1"
-        t_price_str  = columns[8]   # e.g. "3.92"
-        proceeds_str = columns[10]  # e.g. "-392"
-        comm_fee_str = columns[11]  # e.g. "-1.05725"
-        code         = columns[16]  # e.g. "O" or "C"
+        symbol_full  = row[5]   # e.g. "CAT 17APR25 250 P"
+        date_time    = row[6]   # e.g. "2025-04-04, 10:53:04"
+        qty_str      = row[7]   # e.g. "1" or "-1"
+        t_price_str  = row[8]   # e.g. "3.92"
+        proceeds_str = row[10]  # e.g. "-392"
+        comm_fee_str = row[11]  # e.g. "-1.05725"
+        code         = row[16]  # e.g. "O" or "C"
 
+        # Convert quantity
         try:
             quantity = int(qty_str)
         except ValueError:
             return None
 
-        # Map code + sign of qty to "Bought To Open", "Sold To Close", etc.
+        # Determine activity from code + sign of quantity
         if code == 'O':
             if quantity > 0:
                 activity = 'Bought To Open'
@@ -106,41 +121,41 @@ class IBParser(BaseBrokerParser):
         else:
             return None
 
-        # We'll treat 'comm_fee_str' as total commission, and set fees to "0"
+        # We'll treat comm_fee_str as commission, fees=0
         commission_str = comm_fee_str
         fees_str = '0'
 
-        # The total amount is 'proceeds' from IB
+        # 'amount' from proceeds
         amount_str = proceeds_str
-        # The 'price' is the "Trade Price"
+        # 'price' from T. Price
         price_str = t_price_str
 
-        # Next, parse "CAT 17APR25 250 P" into a friendlier description
+        # Parse "CAT 17APR25 250 P" -> "CAT Apr 17 2025 250.00 Put"
         parts = symbol_full.split()
         if len(parts) != 4:
             return None
 
-        ticker = parts[0]          # e.g. "CAT"
-        raw_exp = parts[1]         # e.g. "17APR25"
-        raw_strike = parts[2]      # e.g. "250"
-        raw_putcall = parts[3]     # e.g. "P"
+        ticker = parts[0]
+        raw_exp = parts[1]      # "17APR25"
+        raw_strike = parts[2]   # "250"
+        raw_putcall = parts[3]  # "P" or "C"
 
-        # Convert "17APR25" => "Apr 17 2025"
         month_map = {
             'JAN':'Jan','FEB':'Feb','MAR':'Mar','APR':'Apr','MAY':'May','JUN':'Jun',
             'JUL':'Jul','AUG':'Aug','SEP':'Sep','OCT':'Oct','NOV':'Nov','DEC':'Dec'
         }
-        day_str = raw_exp[:2]       # "17"
-        mon_str = raw_exp[2:5].upper()  # "APR"
-        yr_str  = raw_exp[5:]       # "25" => 2025
+        day_str = raw_exp[:2]         # "17"
+        mon_str = raw_exp[2:5].upper()# "APR"
+        yr_str  = raw_exp[5:]         # "25" => "2025"
+
         if mon_str not in month_map:
             return None
 
         month_str = month_map[mon_str]
         year_full = f"20{yr_str}"
-        expiry_str = f"{month_str} {int(day_str)} {year_full}"
+        # zero-pad day
+        expiry_str = f"{month_str} {int(day_str):02d} {year_full}"
 
-        # Convert strike to float
         try:
             strike_float = float(raw_strike)
         except ValueError:
@@ -155,19 +170,19 @@ class IBParser(BaseBrokerParser):
         description_str = f"{ticker} {expiry_str} {strike_formatted} {option_type}"
 
         return {
-            'date': date_time,      # e.g. "2025-04-04, 10:53:04"
-            'activity': activity,   # e.g. "Bought To Open"
-            'qty': qty_str,         # e.g. "-1"
-            'symbol': ticker,       # e.g. "CAT"
-            'description': description_str,    # e.g. "CAT Apr 17 2025 250.00 Put"
-            'price': price_str,               # e.g. "3.92"
-            'commission': commission_str,      # e.g. "-1.05725"
-            'fees': fees_str,                 # e.g. "0"
-            'amount': amount_str              # e.g. "-392"
+            'date': date_time,
+            'activity': activity,
+            'qty': qty_str,
+            'symbol': ticker,
+            'description': description_str,
+            'price': price_str,
+            'commission': commission_str,
+            'fees': fees_str,
+            'amount': amount_str
         }
 
 ##################################################################
-# 2) A function to parse both date formats
+# 2) parse_currency, parse_mixed_date
 ##################################################################
 
 def parse_currency(val):
@@ -175,33 +190,31 @@ def parse_currency(val):
 
 def parse_mixed_date(str_date):
     """
-    Tries to parse a date from either:
-      Ally format: "MM/DD/YYYY"
-      IB format:   "YYYY-MM-DD, HH:MM:SS"
+    Tries to parse:
+      Ally: "MM/DD/YYYY"
+      IB:   "YYYY-MM-DD, HH:MM:SS"
+    If both fail, fallback to auto-parse.
     """
-    # Attempt Ally (e.g. "03/28/2025")
     try:
         return pd.to_datetime(str_date, format='%m/%d/%Y')
     except ValueError:
         pass
 
-    # Attempt IB (e.g. "2025-04-04, 10:53:04")
     try:
         return pd.to_datetime(str_date, format='%Y-%m-%d, %H:%M:%S')
     except ValueError:
         pass
 
-    # If neither format works, let pandas guess (or raise an error)
     return pd.to_datetime(str_date)  # fallback guess
 
 ##################################################################
-# 3) Building transactions and reading them
+# 3) build_transactions
 ##################################################################
 
 def build_transactions(broker_files, transactions_file='transactions.csv'):
     """
-    Reads each file with its appropriate parser, then writes out a
-    single CSV containing columns:
+    For each file in broker_files, read it with the correct delimiter, pass each row to the parser,
+    and write out a single combined CSV with columns:
        DATE, ACTIVITY, QTY, SYMBOL, DESCRIPTION, PRICE, COMMISSION, FEES, AMOUNT
     """
     columns = ["DATE", "ACTIVITY", "QTY", "SYMBOL", "DESCRIPTION", "PRICE", "COMMISSION", "FEES", "AMOUNT"]
@@ -210,36 +223,60 @@ def build_transactions(broker_files, transactions_file='transactions.csv'):
         writer = csv.writer(outfile)
         writer.writerow(columns)
 
-        for activity_file, parser in broker_files:
-            print(f"Parsing file '{activity_file}' with {parser.__class__.__name__}...")
-            with open(activity_file, 'r') as infile:
-                for line in infile:
-                    parsed = parser.parse_line(line)
-                    if not parsed:
-                        continue
-                    writer.writerow([
-                        parsed['date'],
-                        parsed['activity'],
-                        parsed['qty'],
-                        parsed['symbol'],
-                        parsed['description'],
-                        parsed['price'],
-                        parsed['commission'],
-                        parsed['fees'],
-                        parsed['amount']
-                    ])
+        for file_path, parser in broker_files:
+            print(f"Parsing '{file_path}' with {parser.__class__.__name__}...")
+
+            # Decide delimiter by file extension
+            if file_path.endswith('.txt'):
+                # Ally
+                with open(file_path, 'r', newline='') as f:
+                    # Parse as a tab-delimited file
+                    rowreader = csv.reader(f, delimiter='\t')
+                    for row in rowreader:
+                        parsed = parser.parse_row(row)
+                        if not parsed:
+                            continue
+                        writer.writerow([
+                            parsed['date'],
+                            parsed['activity'],
+                            parsed['qty'],
+                            parsed['symbol'],
+                            parsed['description'],
+                            parsed['price'],
+                            parsed['commission'],
+                            parsed['fees'],
+                            parsed['amount']
+                        ])
+
+            elif file_path.endswith('.csv'):
+                # IB
+                with open(file_path, 'r', newline='') as f:
+                    # Parse as a comma-delimited file
+                    rowreader = csv.reader(f)
+                    for row in rowreader:
+                        parsed = parser.parse_row(row)
+                        if not parsed:
+                            continue
+                        writer.writerow([
+                            parsed['date'],
+                            parsed['activity'],
+                            parsed['qty'],
+                            parsed['symbol'],
+                            parsed['description'],
+                            parsed['price'],
+                            parsed['commission'],
+                            parsed['fees'],
+                            parsed['amount']
+                        ])
+
+            else:
+                print(f"Warning: Unknown file extension for {file_path}, skipping...")
+
+##################################################################
+# 4) parse_description, read_transactions, merges, matching, etc.
+##################################################################
 
 def parse_description(row):
-    """
-    After we unify everything in transactions.csv, this function
-    attempts to parse the 'DESCRIPTION' column if it looks like:
-      "CAT Apr 17 2025 250.00 Put"
-    extracting:
-      row['OPT_SYMBOL'] = 'CAT'
-      row['EXPIRATION_DATE'] = 2025-04-17
-      row['STRIKE'] = 250.00
-      row['OPTION_TYPE'] = 'Put'
-    """
     pattern = r'^(?P<symbol>\S+) (?P<date>\w+ \d{2} \d{4}) (?P<strike>\d+\.\d+) (?P<type>Call|Put)$'
     match = re.match(pattern, row['DESCRIPTION'])
     if match:
@@ -256,32 +293,22 @@ def parse_description(row):
 
 def read_transactions(file):
     df = pd.read_csv(file, thousands=',')
-    # Exclude 'Cash Movement' rows
     df = df[df['ACTIVITY'] != 'Cash Movement'].copy()
 
-    # Convert money columns
     currency_cols = ['PRICE', 'COMMISSION', 'FEES', 'AMOUNT']
     for col in currency_cols:
         df[col] = df[col].apply(parse_currency)
 
-    # Convert quantity to numeric and take absolute value
     df['QTY'] = pd.to_numeric(df['QTY'])
     df['QTY'] = df['QTY'].abs()
 
-    # Convert the 'DATE' column using our mixed-date parser
     df['DATE'] = df['DATE'].apply(parse_mixed_date)
 
-    # Treat "Expired" as "Sold To Close"
     df.loc[df['ACTIVITY'] == 'Expired', 'ACTIVITY'] = 'Sold To Close'
 
-    # Attempt to parse the option description
     df = df.apply(parse_description, axis=1)
     df.dropna(subset=['OPT_SYMBOL'], inplace=True)
 
-    # Assign an order priority for sorting
-    #    Open trades (BTO, STO) => priority 0
-    #    Close trades (STC, BTC) => priority 1
-    # so that when we have same-day trades, the open is listed first.
     df['ACTIVITY PRIORITY'] = df['ACTIVITY'].map({
         'Bought To Open': 0,
         'Sold To Open': 0,
@@ -289,21 +316,12 @@ def read_transactions(file):
         'Bought To Close': 1
     })
 
-    # Sort by date, then activity priority
     df.sort_values(by=['DATE', 'ACTIVITY PRIORITY'], ascending=[True, True], inplace=True)
     df.reset_index(drop=True, inplace=True)
 
     return df
 
-##################################################################
-# 4) Matching and consistency checks
-##################################################################
-
 def merge_simultaneous(df):
-    """
-    If you have multiple lines for the same day, same trade,
-    merges them into a single line with a weighted average price, etc.
-    """
     merged = []
     i = 0
     while i < len(df):
@@ -479,32 +497,29 @@ def verify_consistency(df, trades_df, unopened_df, unclosed_df):
 ##################################################################
 
 if __name__ == '__main__':
-    # We'll look for ally.txt and IB.txt in the current directory.
     ally_path = Path('ally.txt')
-    ib_path = Path('IB.txt')
+    ib_csv_path = Path('IB.csv')
     broker_files = []
 
-    # If ally.txt is present, parse with AllyParser
+    # If ally.txt is present
     if ally_path.is_file():
         broker_files.append((str(ally_path), AllyParser()))
 
-    # If IB.txt is present, parse with IBParser
-    if ib_path.is_file():
-        broker_files.append((str(ib_path), IBParser()))
+    # If IB.csv is present
+    if ib_csv_path.is_file():
+        broker_files.append((str(ib_csv_path), IBParser()))
 
     if not broker_files:
-        print("Error: Neither 'ally.txt' nor 'IB.txt' found in the current directory.")
+        print("Error: neither ally.txt nor IB.csv found.")
         sys.exit(1)
 
-    # Combine everything into transactions.csv
     transactions_file = 'transactions.csv'
-    print(f"Building transactions from these files into {transactions_file}:")
-    for bf in broker_files:
-        print(" -", bf[0])
+    print(f"Building transactions from the following source(s) into {transactions_file}:")
+    for fpath, parser in broker_files:
+        print(" -", fpath, "via", parser.__class__.__name__)
 
     build_transactions(broker_files, transactions_file)
 
-    # Read, analyze, match trades, produce final CSVs
     df = read_transactions(transactions_file)
     df = merge_simultaneous(df)
     trades_df, unopened_df, unclosed_df = match_trades(df)
