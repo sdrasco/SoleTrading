@@ -323,6 +323,15 @@ if __name__ == '__main__':
     
     feature_plots = generate_feature_plots(trades_df, candidate_features)
     win_rate_by_symbol_img = generate_win_rate_by_symbol_plot(trades_df)
+
+    # format profit string allowing for loss
+    net_profit = kpis["net_profit"]
+    if net_profit < 0:
+        # Convert to positive, insert minus before the $
+        net_profit_str = f"-${abs(net_profit):,.2f}"
+    else:
+        # Standard formatting if >= 0
+        net_profit_str = f"${net_profit:,.2f}"
     
     context = {
         "Start_Date": str(trades_df["CLOSE DATE"].min().date()),
@@ -331,12 +340,12 @@ if __name__ == '__main__':
         "Overall_Win_Rate": f"{kpis['win_rate']:.2f}",
         "Average_Trade_Return": f"{kpis['avg_trade_return']:.4f}",
         "Total_Trades": kpis["total_trades"],
-        "Net_Profit": f"{kpis['net_profit']:.2f}",
-        "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.2f}%",
-        "Win_Rate": f"{kpis['win_rate']:.2f}",
+        "Net_Profit": net_profit_str,
+        "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.0f}%",
+        "Win_Rate": f"{kpis['win_rate']:.0f}%",
         "Sharpe_Ratio": f"{kpis['sharpe_ratio']:.2f}",
         "adjusted_sortino": f"{kpis['adjusted_sortino_ratio']:.2f}" if not np.isnan(kpis['adjusted_sortino_ratio']) else "--",
-        "Max_Drawdown": f"{kpis['max_drawdown_pct']:.2f}%",
+        "Max_Drawdown": f"{kpis['max_drawdown_pct']:.0f}%",
         "Volatility": f"{kpis['volatility']:.2f}",
         "Equity_Curve": equity_curve_img,
         "Trade_Return_Histogram": trade_hist_img,

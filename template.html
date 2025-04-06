@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Comprehensive Trading Performance Report</title>
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-
   <style>
     :root {
       --primary-color: #6b9080;
@@ -164,11 +163,26 @@
       margin: 0 auto;
     }
 
-    /* Smaller font for the Individual Trades table and horizontal scroll if needed */
+    /* Smaller font for the Individual Trades table */
     #individual-trades table {
       font-size: 0.85rem;
     }
+    /* 
+       Wrap the table so it can scroll horizontally,
+       but keep the <h2> sticky so the title is always visible.
+    */
     #individual-trades {
+      position: relative; /* needed for the sticky heading offset context */
+    }
+    #individual-trades h2 {
+      position: sticky;
+      top: 60px; /* adjust if your nav is taller/shorter */
+      z-index: 2; /* above the table below */
+      background: var(--neutral-bg);
+      margin-bottom: 10px;
+      padding: 10px 0;
+    }
+    #individual-trades .scrollable-table {
       overflow-x: auto; 
     }
 
@@ -184,9 +198,9 @@
   <!-- Sticky navigation links to sections -->
   <nav class="top-nav">
     <a href="#performance-metrics">Performance</a>
-    <a href="#weekly-performance">Weekly</a>
     <a href="#visualizations">Equity & Returns</a>
     <a href="#trade-factor-analysis">Analysis</a>
+    <a href="#weekly-performance">Weekly</a>
     <a href="#open-positions">Open Positions</a>
     <a href="#individual-trades">Trades</a>
   </nav>
@@ -206,7 +220,7 @@
         <div class="metric-value">{{ Total_Trades }}</div>
       </div>
       <div class="metric-card">
-        <div class="metric-title">Net Profit ($)</div>
+        <div class="metric-title">Net Profit</div>
         <div class="metric-value">{{ Net_Profit }}</div>
       </div>
       <div class="metric-card">
@@ -214,7 +228,7 @@
         <div class="metric-value">{{ Avg_Trade_Return }}</div>
       </div>
       <div class="metric-card">
-        <div class="metric-title">Win Rate (%)</div>
+        <div class="metric-title">Win Rate</div>
         <div class="metric-value">{{ Win_Rate }}</div>
       </div>
       <div class="metric-card">
@@ -226,7 +240,7 @@
         <div class="metric-value">{{ adjusted_sortino }}</div>
       </div>
       <div class="metric-card">
-        <div class="metric-title">Max Drawdown (%)</div>
+        <div class="metric-title">Max Drawdown</div>
         <div class="metric-value">{{ Max_Drawdown }}</div>
       </div>
       <div class="metric-card">
@@ -234,12 +248,6 @@
         <div class="metric-value">{{ Volatility }}</div>
       </div>
     </div>
-  </div>
-  
-  <!-- Weekly Performance Section -->
-  <div class="section" id="weekly-performance">
-    <h2>Weekly Performance</h2>
-    {{ Weekly_Summary | safe }}
   </div>
   
   <!-- Equity Curve and Visualizations Section -->
@@ -276,16 +284,24 @@
     </div>
   </div>
 
+  <!-- Weekly Performance Section -->
+  <div class="section" id="weekly-performance">
+    <h2>Weekly Performance</h2>
+    {{ Weekly_Summary | safe }}
+  </div>
+
   <!-- Open Positions Section -->
   <div class="section" id="open-positions">
     <h2>Open Positions & Exposure</h2>
     {{ Open_Positions | safe }}
   </div>
   
-  <!-- Individual Trades Section (smaller font) -->
+  <!-- Individual Trades Section (title stays fixed while horizontally scrolling) -->
   <div class="section" id="individual-trades">
     <h2>Individual Trades</h2>
-    {{ Individual_Trades | safe }}
+    <div class="scrollable-table">
+      {{ Individual_Trades | safe }}
+    </div>
   </div>
   
   <footer>
