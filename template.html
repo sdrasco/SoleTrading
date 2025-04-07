@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- 1) Viewport meta for mobile scaling -->
+  <!-- Mobile-Friendly -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <title>Comprehensive Trading Performance Report</title>
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+
   <style>
     :root {
       --primary-color: #6b9080;
@@ -36,7 +37,6 @@
       padding: 20px; 
     }
 
-    /* 2) Make top nav flexible and allow wrapping on small screens */
     .top-nav {
       background-color: #fff;
       position: sticky;
@@ -44,7 +44,7 @@
       z-index: 999;
       box-shadow: 0 1px 5px var(--shadow-color);
       display: flex;
-      flex-wrap: wrap; /* allow links to wrap on smaller screens */
+      flex-wrap: wrap; /* allow wrapping on small screens */
       justify-content: center;
       gap: 20px;
       padding: 10px;
@@ -67,7 +67,6 @@
       margin-bottom: 15px;
     }
 
-    /* Container for sections, with a max width for large screens */
     .section { 
       margin: 40px auto; 
       max-width: 1200px; 
@@ -111,6 +110,10 @@
     }
 
     /* Tables in rounded boxes with smaller row hover effect */
+    /* 1) Add ".sortable-table" on tables that we want to be clickable. */
+    table.sortable-table {
+      cursor: pointer; /* indicates it's interactive */
+    }
     table {
       border-collapse: separate;
       border-spacing: 0;
@@ -130,6 +133,7 @@
       background-color: var(--table-header-bg);
       color: var(--table-header-text);
       font-weight: 600;
+      user-select: none; /* optional: no text selection on click */
     }
     tr:nth-child(even) {
       background-color: var(--highlight-row-bg);
@@ -179,12 +183,12 @@
        but keep the <h2> sticky so the title is always visible.
     */
     #individual-trades {
-      position: relative; /* needed for the sticky heading offset context */
+      position: relative; 
     }
     #individual-trades h2 {
       position: sticky;
-      top: 60px; /* adjust if your nav is taller/shorter */
-      z-index: 2; /* above the table below */
+      top: 60px;
+      z-index: 2;
       background: var(--neutral-bg);
       margin-bottom: 10px;
       padding: 10px 0;
@@ -200,45 +204,21 @@
       color: #777; 
     }
 
-    /* 3) Responsive Media Queries for smaller devices */
-    @media (max-width: 1024px) {
-      /* Let top nav links be more spaced if needed */
-      .top-nav {
-        padding: 10px 5px;
-      }
-      .metrics-container {
-        margin-top: 10px;
-      }
-    }
-
+    /* Responsive for smaller screens */
     @media (max-width: 768px) {
-      /* Make the metrics grid 2 columns wide, 4 rows total */
       .metrics-container {
         grid-template-columns: repeat(2, 1fr);
         grid-template-rows: repeat(4, auto);
       }
-
-      /* For the "Equity & Returns" or other chart grids 
-         that used repeat(2, 1fr) on desktop, revert to 1 column */
       .chart-grid[style*="repeat(2, 1fr)"] {
         grid-template-columns: 1fr !important; 
       }
-
-      /* The features-grid goes from 3 columns to 1 column */
       .features-grid {
         grid-template-columns: 1fr;
         grid-template-rows: auto;
       }
-
-      /* Smaller top nav text or reduce gap if needed */
-      .top-nav a {
-        font-size: 0.9rem;
-        padding: 4px 8px;
-      }
     }
-
     @media (max-width: 480px) {
-      /* Even smaller fonts or spacing if desired */
       body {
         padding: 10px;
       }
@@ -274,10 +254,11 @@
     <p>Reporting Period: {{ Start_Date }} - {{ End_Date }}</p>
   </div>
   
-  <!-- Overall Performance Summary Section (2x4 grid on desktop, narrower on mobile) -->
+  <!-- Overall Performance Summary Section (2x4 grid) -->
   <div class="section" id="performance-metrics">
     <h2>Overall Performance</h2>
     <div class="metrics-container">
+      <!-- Example: no sorting needed here, so no class on the "cards" -->
       <div class="metric-card">
         <div class="metric-title">Total Trades</div>
         <div class="metric-value">{{ Total_Trades }}</div>
@@ -316,7 +297,6 @@
   <!-- Equity Curve and Visualizations Section -->
   <div class="section" id="visualizations">
     <h2>Equity & Returns</h2>
-    <!-- On desktop: 2 columns; on mobile: 1 column via media query -->
     <div class="chart-grid" style="grid-template-columns: repeat(2, 1fr);">
       <div class="chart-card">
         <img src="data:image/png;base64,{{ Equity_Curve }}" alt="Equity Curve">
@@ -331,14 +311,12 @@
   <div class="section" id="trade-factor-analysis">
     <h2>Trade Factor Analysis</h2>
 
-    <!-- Win Rate by Symbol in its own single-column grid, half width (desktop) -->
     <div class="chart-grid" style="grid-template-columns: 1fr;">
       <div class="chart-card chart-card--half">
         <img src="data:image/png;base64,{{ Win_Rate_By_Symbol }}" alt="Win Rate by Symbol">
       </div>
     </div>
 
-    <!-- Feature Plots (3×2 grid on desktop, collapses on mobile) -->
     <div class="chart-grid features-grid">
       {% for feature, plot_data in Feature_Plots.items() %}
       <div class="chart-card">
@@ -348,28 +326,100 @@
     </div>
   </div>
 
-  <!-- Weekly Performance Section -->
+  <!-- Example: Make Weekly Performance table sortable (add the class) -->
   <div class="section" id="weekly-performance">
     <h2>Weekly Performance</h2>
-    {{ Weekly_Summary | safe }}
+    <div>
+      <!-- Insert "sortable-table" to let the script handle sorting. -->
+      {{ Weekly_Summary | safe | replace('<table', '<table class="sortable-table"') }}
+    </div>
   </div>
 
-  <!-- Open Positions Section -->
+  <!-- Similarly, if you want open positions / trades to be sortable: -->
   <div class="section" id="open-positions">
     <h2>Open Positions & Exposure</h2>
-    {{ Open_Positions | safe }}
+    <div>
+      {{ Open_Positions | safe | replace('<table', '<table class="sortable-table"') }}
+    </div>
   </div>
   
-  <!-- Individual Trades Section (title stays fixed while horizontally scrolling) -->
   <div class="section" id="individual-trades">
     <h2>Individual Trades</h2>
     <div class="scrollable-table">
-      {{ Individual_Trades | safe }}
+      <!-- Adding "sortable-table" here as well if desired -->
+      {{ Individual_Trades | safe | replace('<table', '<table class="sortable-table"') }}
     </div>
   </div>
   
   <footer>
     <p>Trading Performance Report &copy; 2025 | Generated by {{ System_Name }}</p>
   </footer>
+
+  <!-- 2) JavaScript for sorting: Place at bottom of body -->
+  <script>
+    // This function attempts to parse a cell's text as a float.
+    // If it fails, we just return the original text for a normal (string) sort.
+    function getCellValue(row, index) {
+      const text = row.children[index].innerText.trim();
+      
+      // Try to parse as float (handling $ or % or commas).
+      //  e.g. "$1,234.56" => 1234.56
+      //       "45.67%"    => 45.67
+      // If parseFloat fails (NaN), we'll return the text for standard string sort.
+      let cleaned = text.replace(/[\$,\%]/g, ''); // remove $, commas, and %
+      let val = parseFloat(cleaned);
+      return isNaN(val) ? text : val;
+    }
+
+    // Sort logic: compare two rows based on the targeted column index
+    function compareRowsAsc(a, b, idx) {
+      const A = getCellValue(a, idx);
+      const B = getCellValue(b, idx);
+      
+      if (typeof A === 'number' && typeof B === 'number') {
+        return A - B; // numeric ascending
+      }
+      // string ascending
+      return A.toString().localeCompare(B.toString());
+    }
+    function compareRowsDesc(a, b, idx) {
+      return compareRowsAsc(b, a, idx); // just flip a/b for descending
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      const tables = document.querySelectorAll("table.sortable-table");
+      tables.forEach((table) => {
+        const headers = table.querySelectorAll("th");
+        // Keep track of sort state per column
+        let sortState = Array(headers.length).fill("none"); // 'asc' or 'desc'
+
+        headers.forEach((th, index) => {
+          th.addEventListener("click", () => {
+            const rows = Array.from(table.querySelectorAll("tbody tr"));
+            
+            // Determine the new sort order
+            let currentState = sortState[index];
+            let newState = (currentState === "asc") ? "desc" : "asc";
+            
+            // Sort the rows
+            let sorted;
+            if (newState === "asc") {
+              sorted = rows.sort((a, b) => compareRowsAsc(a, b, index));
+            } else {
+              sorted = rows.sort((a, b) => compareRowsDesc(a, b, index));
+            }
+
+            // Re-insert sorted rows into the table body
+            const tbody = table.querySelector("tbody");
+            sorted.forEach((row) => tbody.appendChild(row));
+
+            // Reset all columns to "none", then set the newState for the clicked column
+            sortState.fill("none");
+            sortState[index] = newState;
+          });
+        });
+      });
+    });
+  </script>
 </body>
 </html>
