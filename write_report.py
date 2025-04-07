@@ -6,30 +6,18 @@ import matplotlib.dates as mdates
 import io, base64, datetime
 from jinja2 import Template
 
-# ------------------------------
-# Helper Functions for Analysis
-# ------------------------------
-
 def load_trades(filename):
-    """
-    Load the CSV and parse the relevant date columns.
-    Rename columns and derive additional columns for analysis.
-    """
-    # Parse relevant date columns
     df = pd.read_csv(
         filename,
         parse_dates=["OPEN DATE", "CLOSE DATE", "EXPIRATION"]
     )
     
-    # If DAYS_HELD is not in the file, calculate it
     if "DAYS_HELD" not in df.columns:
         df["DAYS_HELD"] = (df["CLOSE DATE"] - df["OPEN DATE"]).dt.days
 
-    # Create day-of-week columns
     df["DAY_OF_WEEK_AT_OPEN"] = df["OPEN DATE"].dt.day_name()
     df["DAY_OF_WEEK_AT_CLOSE"] = df["CLOSE DATE"].dt.day_name()
 
-    # Derive trade direction from OPTION TYPE
     if "OPTION TYPE" in df.columns:
         df["OPTION TYPE"] = df["OPTION TYPE"].str.strip().str.upper()
         df["TRADE DIRECTION"] = df["OPTION TYPE"].map({
@@ -41,8 +29,6 @@ def load_trades(filename):
 def compute_adjusted_sortino_ratio(df, target_return=0):
     returns = df["RETURN"]
     mean_return = returns.mean()
-    
-    # Calculate downside deviation based on returns below the target
     downside_returns = returns[returns < target_return]
     if len(downside_returns) == 0:
         return np.nan
@@ -51,8 +37,6 @@ def compute_adjusted_sortino_ratio(df, target_return=0):
         return np.nan
 
     sortino_ratio = (mean_return - target_return) / downside_deviation
-    
-    # Adjust using skewness and kurtosis
     skewness = returns.skew()
     kurtosis = returns.kurtosis()
     adjusted_sortino = sortino_ratio * (
@@ -65,20 +49,18 @@ def compute_kpis(df):
     net_profit = df["NET PROFIT"].sum()
     avg_trade_return = df["RETURN"].mean()
     win_rate = (df["NET PROFIT"] > 0).mean() * 100
-    sharpe_ratio = df["RETURN"].mean() / df["RETURN"].std() if df["RETURN"].std() > 0 else np.nan
+    sharpe_ratio = (df["RETURN"].mean() / df["RETURN"].std()
+                    if df["RETURN"].std() > 0 else np.nan)
 
-    # Sort for equity curve (trade-by-trade cumulative net profit)
     df_sorted = df.sort_values(by="CLOSE DATE").copy()
     df_sorted["CUMULATIVE_NET_PROFIT"] = df_sorted["NET PROFIT"].cumsum()
 
-    # Drawdown calculation
     cumulative = df_sorted["CUMULATIVE_NET_PROFIT"]
     running_max = cumulative.cummax()
     drawdown = (cumulative - running_max) / running_max.replace(0, np.nan)
     max_drawdown_pct = abs(drawdown.min() * 100)
 
     volatility = df["RETURN"].std()
-    
     adjusted_sortino_ratio = compute_adjusted_sortino_ratio(df)
 
     return {
@@ -89,7 +71,7 @@ def compute_kpis(df):
         "sharpe_ratio": sharpe_ratio,
         "max_drawdown_pct": max_drawdown_pct,
         "volatility": volatility,
-        "equity_curve": df_sorted,  # still used for other KPIs
+        "equity_curve": df_sorted,
         "adjusted_sortino_ratio": adjusted_sortino_ratio
     }
 
@@ -108,7 +90,6 @@ def generate_weekly_summary(df):
         lambda x: x.mean() / x.std() if x.std() > 0 else np.nan
     ).values
     
-    # Group only on the "RETURN" column to avoid the deprecation warning
     weekly["adjusted_sortino_ratio"] = df.groupby("WEEK")["RETURN"].apply(
         lambda x: compute_adjusted_sortino_ratio(pd.DataFrame({"RETURN": x}))
     ).values
@@ -116,12 +97,10 @@ def generate_weekly_summary(df):
     numeric_cols = weekly.select_dtypes(include=[np.number]).columns
     weekly[numeric_cols] = weekly[numeric_cols].round(2)
 
-    # Explicitly label infinite Sortino Ratios
     weekly["Adjusted Sortino"] = weekly["adjusted_sortino_ratio"].apply(
         lambda x: "inf" if np.isnan(x) else x
     )
 
-    # Add sequential Week # at the far left and rename columns
     weekly.insert(0, "Week #", range(1, len(weekly) + 1))
     weekly.rename(columns={"WEEK": "Starts"}, inplace=True)
 
@@ -131,47 +110,36 @@ def generate_weekly_summary(df):
 
 def generate_equity_curve_plot(trades_df):
     df = trades_df.copy()
-    # Convert CLOSE DATE to a proper datetime (only date portion)
     df['DATE'] = pd.to_datetime(df['CLOSE DATE'].dt.date)
     
-    # Group by date: sum NET PROFIT for equity and count trades for volume
     daily_profit = df.groupby('DATE')['NET PROFIT'].sum().sort_index()
-    daily_volume = df.groupby('DATE').size().sort_index()  # number of trades per day
+    daily_volume = df.groupby('DATE').size().sort_index()
 
-    # Create a complete date range from the first to last date.
     all_dates = pd.date_range(start=daily_profit.index.min(),
                               end=daily_profit.index.max(), freq='D')
     daily_profit = daily_profit.reindex(all_dates, fill_value=0)
     daily_volume = daily_volume.reindex(all_dates, fill_value=0)
-    
-    # Compute cumulative equity (carry forward on days with no trades)
     cumulative_equity = daily_profit.cumsum()
     
-    # Transform dates to week numbers: 1 + (days since start)/7 (fractional values)
     start_date = cumulative_equity.index[0]
     x_values = 1 + (cumulative_equity.index - start_date).days / 7
     
-    # Create the figure and a twin axis for volume
     fig, ax1 = plt.subplots(figsize=(10, 6))
     ax2 = ax1.twinx()
     
-    # Adjust z-orders: make ax1 (the equity axis) drawn above ax2.
     ax1.set_zorder(2)
-    ax1.patch.set_visible(False)  # Hide ax1 background so ax2 shows through if needed.
+    ax1.patch.set_visible(False)
     ax2.set_zorder(1)
     
-    # Define colors
-    muted_blue = "#4a90e2"     # Equity color
-    light_grey = "#D3D3D3"     # Volume color
+    muted_blue = "#4a90e2"
+    light_grey = "#D3D3D3"
 
-    # Plot the volume bars on the right y-axis (ax2)
-    bar_width = 0.1  # adjust bar width as needed
+    bar_width = 0.1
     ax2.bar(x_values, daily_volume.values, width=bar_width, color=light_grey,
             alpha=0.5, zorder=1)
     ax2.set_ylabel("Number of Trades", fontsize=21, color=light_grey)
     ax2.tick_params(axis='y', labelsize=21, colors=light_grey)
     
-    # Plot the equity curve on the left y-axis (ax1)
     ax1.plot(x_values, cumulative_equity.values, marker='o', markersize=12,
              linestyle='-', color=muted_blue, zorder=2)
     ax1.set_xlabel("Week", fontsize=21)
@@ -179,7 +147,6 @@ def generate_equity_curve_plot(trades_df):
     ax1.tick_params(axis='x', labelsize=21)
     ax1.tick_params(axis='y', labelsize=21, colors=muted_blue)
 
-    # Set x-ticks at integer week values
     max_week = math.ceil(x_values.max())
     ticks = np.arange(1, max_week + 1)
     ax1.set_xticks(ticks)
@@ -215,7 +182,6 @@ def generate_win_rate_by_symbol_plot(df):
     plt.figure(figsize=(8, max(3, 0.4 * num_bars)))
     plt.barh(labels, summary['win_rate'], color='skyblue', edgecolor='black', height=bar_height)
     
-    # Increase font sizes for labels and ticks
     plt.ylabel('Symbol (Number of Trades)', fontsize=16)
     plt.xlabel('Win Rate (%)', fontsize=16)
     plt.xticks(fontsize=14)
@@ -282,33 +248,37 @@ def render_report(template_file, context, output_file="report.html"):
         f.write(report_html)
     print(f"Report written to {output_file}")
 
-# ------------------------------
-# Main Script
-# ------------------------------
-
 if __name__ == '__main__':
+    # 1) Load trades and compute stats
     trades_df = load_trades("trades.csv")
     kpis = compute_kpis(trades_df)
     weekly_summary = generate_weekly_summary(trades_df)
+    
+    # 2) Convert weekly summary to HTML, add "sortable-table"
     weekly_summary_html = weekly_summary.to_html(index=False, classes="dataframe", border=1)
-    
-    # Now, generate a daily equity curve plot from the trades data
+    weekly_summary_html = weekly_summary_html.replace('<table', '<table class="sortable-table"')
+
+    # 3) Generate equity/hist plots
     equity_curve_img = generate_equity_curve_plot(trades_df)
-    
     trade_hist_img = generate_trade_return_histogram(trades_df)
     
+    # 4) Build "Open Positions" table, add "sortable-table"
     open_positions_df = pd.read_csv("unclosed.csv")
     numeric_cols = open_positions_df.select_dtypes(include=[np.number]).columns
     open_positions_df[numeric_cols] = open_positions_df[numeric_cols].round(2)
     open_positions_df.columns = [col.replace("_", " ") for col in open_positions_df.columns]
     open_positions_html = open_positions_df.to_html(index=False, classes="dataframe", border=1)
-    
+    open_positions_html = open_positions_html.replace('<table', '<table class="sortable-table"')
+
+    # 5) Build "Individual Trades" table, add "sortable-table"
     trades_html_df = trades_df.copy()
     numeric_cols = trades_html_df.select_dtypes(include=[np.number]).columns
     trades_html_df[numeric_cols] = trades_html_df[numeric_cols].round(2)
     trades_html_df.columns = [col.replace("_", " ") for col in trades_html_df.columns]
     individual_trades_html = trades_html_df.to_html(index=False, classes="dataframe", border=1)
-    
+    individual_trades_html = individual_trades_html.replace('<table', '<table class="sortable-table"')
+
+    # 6) Feature plots
     candidate_features = []
     if "DAYS_HELD" in trades_df.columns:
         candidate_features.append("DAYS_HELD")
@@ -324,15 +294,14 @@ if __name__ == '__main__':
     feature_plots = generate_feature_plots(trades_df, candidate_features)
     win_rate_by_symbol_img = generate_win_rate_by_symbol_plot(trades_df)
 
-    # format profit string allowing for loss
+    # 7) Format net profit with minus sign before $ if negative
     net_profit = kpis["net_profit"]
     if net_profit < 0:
-        # Convert to positive, insert minus before the $
         net_profit_str = f"-${abs(net_profit):,.2f}"
     else:
-        # Standard formatting if >= 0
         net_profit_str = f"${net_profit:,.2f}"
     
+    # 8) Build the context
     context = {
         "Start_Date": str(trades_df["CLOSE DATE"].min().date()),
         "End_Date": str(trades_df["CLOSE DATE"].max().date()),
@@ -344,17 +313,25 @@ if __name__ == '__main__':
         "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.0f}%",
         "Win_Rate": f"{kpis['win_rate']:.0f}%",
         "Sharpe_Ratio": f"{kpis['sharpe_ratio']:.2f}",
-        "adjusted_sortino": f"{kpis['adjusted_sortino_ratio']:.2f}" if not np.isnan(kpis['adjusted_sortino_ratio']) else "--",
+        "adjusted_sortino": (
+            f"{kpis['adjusted_sortino_ratio']:.2f}"
+            if not np.isnan(kpis['adjusted_sortino_ratio'])
+            else "--"
+        ),
         "Max_Drawdown": f"{kpis['max_drawdown_pct']:.0f}%",
         "Volatility": f"{kpis['volatility']:.2f}",
         "Equity_Curve": equity_curve_img,
         "Trade_Return_Histogram": trade_hist_img,
+        
+        # Inject the updated table HTML
         "Weekly_Summary": weekly_summary_html,
         "Open_Positions": open_positions_html,
         "Individual_Trades": individual_trades_html,
+
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,  
         "System_Name": "Steve Drasco",
         "Feature_Plots": feature_plots
     }
     
+    # 9) Render the final template with everything
     render_report("template.html", context)

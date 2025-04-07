@@ -44,7 +44,7 @@
       z-index: 999;
       box-shadow: 0 1px 5px var(--shadow-color);
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: wrap; /* let nav items wrap on smaller screens */
       justify-content: center;
       gap: 20px;
       padding: 10px;
@@ -82,6 +82,7 @@
       color: var(--neutral-text);
     }
 
+    /* 2×4 card grid for Overall Performance (desktop) */
     .metrics-container {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -108,6 +109,7 @@
       color: var(--neutral-text);
     }
 
+    /* TABLE STYLES (sortable if .sortable-table is added) */
     table {
       border-collapse: separate;
       border-spacing: 0;
@@ -118,6 +120,9 @@
       border-radius: 8px;
       overflow: hidden;
     }
+    table.sortable-table {
+      cursor: pointer; /* indicate it's interactive */
+    }
     th, td {
       border: 1px solid #ddd;
       padding: 10px;
@@ -127,6 +132,7 @@
       background-color: var(--table-header-bg);
       color: var(--table-header-text);
       font-weight: 600;
+      user-select: none; /* prevent text selection on click */
     }
     tr:nth-child(even) {
       background-color: var(--highlight-row-bg);
@@ -135,6 +141,7 @@
       background-color: var(--hover-row-bg);
     }
 
+    /* CHART STYLES & GRID LAYOUT */
     .chart-grid {
       display: grid;
       gap: 20px;
@@ -147,7 +154,7 @@
       border-radius: 8px;
       padding: 10px;
       text-align: center;
-      cursor: pointer; /* Indicate clickable images on desktop */
+      cursor: pointer; /* indicate clickable images (desktop) */
     }
     .chart-card img {
       width: 100%;
@@ -155,6 +162,7 @@
       border-radius: 5px;
     }
 
+    /* 3×2 grid for feature plots (desktop) */
     .features-grid {
       grid-template-columns: repeat(3, 1fr);
       grid-template-rows: repeat(2, auto);
@@ -164,6 +172,7 @@
       margin: 0 auto;
     }
 
+    /* Smaller font for the Individual Trades table */
     #individual-trades table {
       font-size: 0.85rem;
     }
@@ -220,7 +229,7 @@
       }
     }
 
-    /* LIGHTBOX OVERLAY */
+    /* LIGHTBOX OVERLAY (hidden by default) */
     .lightbox-overlay {
       position: fixed;
       top: 0; 
@@ -249,6 +258,7 @@
   </style>
 </head>
 <body>
+  <!-- Sticky navigation links to sections -->
   <nav class="top-nav">
     <a href="#performance-metrics">Performance</a>
     <a href="#visualizations">Equity & Returns</a>
@@ -263,7 +273,8 @@
   <div class="report-banner">
     <p>Reporting Period: {{ Start_Date }} - {{ End_Date }}</p>
   </div>
-  
+
+  <!-- Overall Performance Metrics (2×4 card grid) -->
   <div class="section" id="performance-metrics">
     <h2>Overall Performance</h2>
     <div class="metrics-container">
@@ -301,28 +312,34 @@
       </div>
     </div>
   </div>
-  
+
+  <!-- Equity Curve & Trade Return Histogram -->
   <div class="section" id="visualizations">
     <h2>Equity & Returns</h2>
     <div class="chart-grid" style="grid-template-columns: repeat(2, 1fr);">
       <div class="chart-card">
+        <!-- Plots the daily equity curve -->
         <img src="data:image/png;base64,{{ Equity_Curve }}" alt="Equity Curve">
       </div>
       <div class="chart-card">
+        <!-- Plots the histogram of returns -->
         <img src="data:image/png;base64,{{ Trade_Return_Histogram }}" alt="Trade Return Histogram">
       </div>
     </div>
   </div>
-  
+
+  <!-- Trade Factor Analysis (Win Rate By Symbol & Feature Plots) -->
   <div class="section" id="trade-factor-analysis">
     <h2>Trade Factor Analysis</h2>
 
+    <!-- Win Rate By Symbol (half-width) -->
     <div class="chart-grid" style="grid-template-columns: 1fr;">
       <div class="chart-card chart-card--half">
         <img src="data:image/png;base64,{{ Win_Rate_By_Symbol }}" alt="Win Rate by Symbol">
       </div>
     </div>
 
+    <!-- Feature Plots (3×2 on desktop, collapses on mobile) -->
     <div class="chart-grid features-grid">
       {% for feature, plot_data in Feature_Plots.items() %}
       <div class="chart-card">
@@ -332,16 +349,19 @@
     </div>
   </div>
 
+  <!-- Weekly Performance Table -->
   <div class="section" id="weekly-performance">
     <h2>Weekly Performance</h2>
     {{ Weekly_Summary | safe }}
   </div>
 
+  <!-- Open Positions Table -->
   <div class="section" id="open-positions">
     <h2>Open Positions & Exposure</h2>
     {{ Open_Positions | safe }}
   </div>
-  
+
+  <!-- Individual Trades Table -->
   <div class="section" id="individual-trades">
     <h2>Individual Trades</h2>
     <div class="scrollable-table">
@@ -359,12 +379,64 @@
   </div>
 
   <script>
-    // Set up the lightbox if screen width is above 768px
-    if (window.innerWidth > 768) {
+    //
+    // 1) Table Sorting Logic
+    //    Attach to any table with class="sortable-table"
+    //
+    document.addEventListener("DOMContentLoaded", function() {
+      function getCellValue(row, index) {
+        const text = row.children[index].innerText.trim();
+        // Try parsing as float after removing $, commas, %
+        const cleaned = text.replace(/[\$,\%]/g, '');
+        const val = parseFloat(cleaned);
+        return isNaN(val) ? text : val;
+      }
+      function compareRowsAsc(a, b, idx) {
+        const A = getCellValue(a, idx);
+        const B = getCellValue(b, idx);
+        if(typeof A === 'number' && typeof B === 'number') {
+          return A - B;
+        }
+        return A.toString().localeCompare(B.toString());
+      }
+      function compareRowsDesc(a, b, idx) {
+        return compareRowsAsc(b, a, idx);
+      }
+
+      const tables = document.querySelectorAll("table.sortable-table");
+      tables.forEach((table) => {
+        const headers = table.querySelectorAll("th");
+        let sortState = Array(headers.length).fill("none"); 
+
+        headers.forEach((th, colIndex) => {
+          th.addEventListener("click", () => {
+            const rows = Array.from(table.querySelectorAll("tbody tr"));
+            let currentState = sortState[colIndex];
+            let newState = (currentState === "asc") ? "desc" : "asc";
+
+            const sortedRows = (newState === "asc")
+              ? rows.sort((a, b) => compareRowsAsc(a, b, colIndex))
+              : rows.sort((a, b) => compareRowsDesc(a, b, colIndex));
+
+            // Re-insert sorted rows
+            const tbody = table.querySelector("tbody");
+            sortedRows.forEach((r) => tbody.appendChild(r));
+
+            // reset all columns and set newState for the clicked one
+            sortState.fill("none");
+            sortState[colIndex] = newState;
+          });
+        });
+      });
+    });
+
+    //
+    // 2) Lightbox for Charts (disabled on screens <= 768px)
+    //
+    if(window.innerWidth > 768) {
       const overlay = document.getElementById('lightbox');
       const overlayImg = document.getElementById('lightbox-img');
 
-      // Listen for clicks on any chart images (desktop only)
       const chartImages = document.querySelectorAll('.chart-card img');
       chartImages.forEach((img) => {
         img.addEventListener('click', (e) => {
@@ -373,7 +445,7 @@
         });
       });
 
-      // Close the overlay when clicking outside the enlarged image
+      // Close overlay on outside-click
       overlay.addEventListener('click', (e) => {
         if(e.target === overlay) {
           overlay.classList.remove('visible');
