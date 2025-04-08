@@ -273,7 +273,7 @@ def generate_feature_plots(df, features):
         plots[feature] = base64.b64encode(buf.getvalue()).decode("utf-8")
     return plots
 
-def render_report(template_file, context, output_file="report.html"):
+def render_report(template_file, context, output_file="docs/index.html"):
     with open(template_file, "r") as f:
         template_str = f.read()
     template = Template(template_str)
@@ -357,4 +357,4 @@ if __name__ == '__main__':
         "Feature_Plots": feature_plots
     }
     
-    render_report("template.html", context)
+    render_report("docs/template.html", context)
