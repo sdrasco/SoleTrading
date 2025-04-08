@@ -1,3 +1,4 @@
+# ----------------------------------------------------------------------------
 # Python virtual environment
 venv/
 
@@ -10,16 +11,33 @@ __pycache__/
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# macOS Finder metadata
 Icon?
-
-# Directories related to macOS filesystems
 ._*
 
 # Logs and temporary files
 *.log
 *.tmp
 
-# Ignore all files in any subdirectories of the data folder
-data/*/*
+# ----------------------------------------------------------------------------
+# Keep the 'data/Ally', 'data/IB', and 'data/cleaned' directories in Git,
+# but ignore any other files placed there. We'll allow .gitkeep so the
+# directories remain tracked, even when empty.
+# ----------------------------------------------------------------------------
+
+# Ignore everything in data/
+data/*
+
+# But don't ignore these subfolders themselves
+!data/Ally/
+!data/IB/
+!data/cleaned/
+
+# Now ignore everything inside each subfolder
+data/Ally/*
+data/IB/*
+data/cleaned/*
+
+# Except for .gitkeep files - we want those tracked
+!data/Ally/.gitkeep
+!data/IB/.gitkeep
+!data/cleaned/.gitkeep
