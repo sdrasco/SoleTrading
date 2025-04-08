@@ -1,40 +1,63 @@
 # Options Trading Report Generator
 
-This repository contains code that converts options trading activity from an [Ally.com](https://www.ally.com/) brokerage account into an HTML report. Although the repository is public, it's maintained as a personal tool to help manage and analyze options trading data.
+This repository contains code that converts options trading activity from two brokerage accounts, [Ally Invest](https://www.ally.com/) and [Interactive Brokers](https://www.interactivebrokers.co.uk/) (IB), into a combined set of CSV files and an optional HTML report.
 
 The code is released under the [MIT License](LICENSE).
 
-# Pipeline Overview
+---
 
-This pipeline processes option activity data and generates a report. Follow these steps:
+## Pipeline Overview
 
-1. **Copy Activity Data:**
-   - From Ally's website, copy the activity of interest.
-   - **Note:** Do not copy the header.
+This pipeline processes option activity data from **both** Ally and IB, merges them, and generates CSV files with matched trades, open positions, and more. You can then generate an HTML report if desired.
 
-2. **Prepare the Activity File:**
-   - Open your favorite editor (e.g., `vi` or any editor that preserves tabs).
-   - Paste the copied data into a file named `activities.txt`.
+### 1. Organize Your Input Files
 
-3. **Process the Activity Data:**
-   - Run the processing script:
-     ```bash
-     python process_activity.py
-     ```
-   - This will generate the following CSV files:
-     - `transactions.csv` – Contains all lines from `activities.txt` (including those not used in further analysis).
-     - `trades.csv` – Contains all completed trades.
-     - `unclosed.csv` – Contains all open positions (trades that haven't yet closed).
-     - `unopened.csv` – Contains all trades where the opening wasn't contained in the activity file.
+**Ally:**  
+Place your Ally activity data in `./data/Ally/activity.txt`.  
+- From Ally's website, copy the desired rows of activity (skipping any header), and paste them (tabs intact) into `activity.txt`.
 
-4. **Generate the Report:**
-   - Run the report generation script:
-     ```bash
-     python write_report.py
-     ```
-   - This will produce a simple HTML report: `report.html`.
+**IB:**  
+Copy your Interactive Brokers trade files (log in to Portal and select the Performance & Reports > Statements menu, pick activity, then near CSV click download) into `./data/IB/`.  
+- Multiple CSV files are allowed; All will be processed.
+
+### 2. Run the Processing Script
+
+```bash
+python process_activity.py
+```
+
+This script will read both Ally and IB data, combine them, and produce several cleaned CSV files in `./data/cleaned/`:
+
+- **transactions.csv** – A consolidated log of all lines parsed, from both Ally and IB.
+- **trades.csv** – All completed trades (open + close matched).
+- **unclosed.csv** – Trades that are still open (missing a close event).
+- **unopened.csv** – Close events where the open wasn’t found in the given data.
+
+### 3. (Optional) Generate an HTML Report
+
+If you want a simple HTML summary:
+
+```bash
+python write_report.py
+```
+
+This will produce a file named `report.html` in the repository (or whichever location your script is configured for). It contains an overview of the processed trades and their outcomes.
+
+---
 
 ## Notes
 
-- **Tab Preservation:** Ensure your text editor preserves tab characters when pasting the data.
-- **Verification:** You may want to check the CSV files for correctness before generating the final report.
+### 1. Tab Preservation (Ally Only)
+When copying data from the Ally website, ensure your editor preserves tab characters in `activity.txt`. The parser relies on tabs to correctly separate columns.
+
+### 2. Multiple IB CSV Files
+The script automatically processes every `.csv` file in `./data/IB/`. If you only have one IB file, that’s fine—put it in the same folder.
+
+### 3. Verification
+After processing, check the CSV files in `./data/cleaned/` to confirm the data looks correct before generating a final report.
+
+### 4. Missing Data
+If you only have Ally or only have IB data, the script will still run, ignoring the other missing files.
+
+### 5. License
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
