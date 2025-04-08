@@ -109,7 +109,7 @@
       color: var(--neutral-text);
     }
 
-    /* TABLE STYLES (sortable if .sortable-table is added) */
+    /* TABLE STYLES */
     table {
       border-collapse: separate;
       border-spacing: 0;
@@ -368,7 +368,7 @@
   <!-- Weekly Performance Table -->
   <div class="section" id="weekly-performance">
     <h2>Weekly Performance</h2>
-    <table border="1" class="dataframe dataframe">
+    <table border="1" class="dataframe dataframe sortable-table">
   <thead>
     <tr style="text-align: right;">
       <th>Week #</th>
@@ -523,7 +523,7 @@
   <!-- Open Positions Table -->
   <div class="section" id="open-positions">
     <h2>Open Positions & Exposure</h2>
-    <table border="1" class="dataframe dataframe">
+    <table border="1" class="dataframe dataframe sortable-table">
   <thead>
     <tr style="text-align: right;">
       <th>Option Symbol</th>
@@ -601,7 +601,7 @@
   <div class="section" id="individual-trades">
     <h2>Individual Trades</h2>
     <div class="scrollable-table">
-      <table border="1" class="dataframe dataframe">
+      <table border="1" class="dataframe dataframe sortable-table">
   <thead>
     <tr style="text-align: right;">
       <th>SYMBOL</th>
@@ -2996,7 +2996,7 @@
     document.addEventListener("DOMContentLoaded", function() {
       function getCellValue(row, index) {
         const text = row.children[index].innerText.trim();
-        // Try parsing as float after removing $, commas, %
+        // Clean out $, commas, % before parseFloat
         const cleaned = text.replace(/[\$,\%]/g, '');
         const val = parseFloat(cleaned);
         return isNaN(val) ? text : val;
@@ -3004,7 +3004,7 @@
       function compareRowsAsc(a, b, idx) {
         const A = getCellValue(a, idx);
         const B = getCellValue(b, idx);
-        if(typeof A === 'number' && typeof B === 'number') {
+        if (typeof A === 'number' && typeof B === 'number') {
           return A - B;
         }
         return A.toString().localeCompare(B.toString());
@@ -3041,9 +3041,9 @@
     });
 
     //
-    // 2) Lightbox for Charts (disabled on screens <= 768px)
+    // 2) Lightbox for Charts (only if screen width > 768px)
     //
-    if(window.innerWidth > 768) {
+    if (window.innerWidth > 768) {
       const overlay = document.getElementById('lightbox');
       const overlayImg = document.getElementById('lightbox-img');
 
@@ -3057,14 +3057,14 @@
 
       // Close overlay on outside-click
       overlay.addEventListener('click', (e) => {
-        if(e.target === overlay) {
+        if (e.target === overlay) {
           overlay.classList.remove('visible');
         }
       });
 
       // Press ESC to close
       document.addEventListener('keydown', (e) => {
-        if(e.key === 'Escape' && overlay.classList.contains('visible')) {
+        if (e.key === 'Escape' && overlay.classList.contains('visible')) {
           overlay.classList.remove('visible');
         }
       });
