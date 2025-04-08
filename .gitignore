@@ -21,11 +21,5 @@ Icon?
 *.log
 *.tmp
 
-# Activity and generated CSV files
-ally.txt
-IB.csv
-activity.txt
-transactions.csv
-trades.csv
-unclosed.csv
-unopened.csv
+# Ignore all files in any subdirectories of the data folder
+data/*/*

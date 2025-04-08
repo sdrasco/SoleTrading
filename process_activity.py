@@ -2,11 +2,13 @@
 
 import sys
 import csv
+import glob
 import pandas as pd
 import re
 from collections import deque
 from abc import ABC, abstractmethod
 from pathlib import Path
+
 
 ##################################################################
 # 1) Base broker parser classes
@@ -38,7 +40,7 @@ class AllyParser(BaseBrokerParser):
     Parses rows from a tab-delimited ally.txt file.
     Each row is like:
       [
-        '03/28/2025', 'Sold To Close', '-1', 'QQQ Put', 
+        '03/28/2025', 'Sold To Close', '-1', 'QQQ Put',
         'QQQ Apr 04 2025 475.00 Put', '$10.04', '$0.50', '$0.07', '$1,003.43'
       ]
     We require at least 9 columns.
@@ -78,8 +80,8 @@ class IBParser(BaseBrokerParser):
     Parses rows from a comma-delimited IB.csv file.
     Each row might look like:
       [
-        'Trades', 'Data', 'Order', 'Equity and Index Options', 'USD', 
-        'CAT 17APR25 250 P', '2025-04-04, 10:53:04', '1', '3.92', '2.955', 
+        'Trades', 'Data', 'Order', 'Equity and Index Options', 'USD',
+        'CAT 17APR25 250 P', '2025-04-04, 10:53:04', '1', '3.92', '2.955',
         '-392', '-1.05725', '393.05725', '0', '0', '-96.5', 'O'
       ]
     We require at least 17 columns. Only rows with [0]=='Trades', [1]=='Data', [2]=='Order' are relevant.
@@ -180,6 +182,7 @@ class IBParser(BaseBrokerParser):
             'fees': fees_str,
             'amount': amount_str
         }
+
 
 ##################################################################
 # 2) parse_currency, parse_mixed_date
@@ -350,7 +353,7 @@ def merge_simultaneous(df):
 def format_strike(strike):
     if strike is None:
         return None
-    if strike.is_integer():
+    if float(strike).is_integer():
         return int(strike)
     return round(strike, 2)
 
@@ -492,40 +495,65 @@ def verify_consistency(df, trades_df, unopened_df, unclosed_df):
         print(close_check[['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
                            'total_close', 'total_close_calc', 'close_diff']])
 
+
 ##################################################################
 # 5) Main block
 ##################################################################
 
 if __name__ == '__main__':
-    ally_path = Path('ally.txt')
-    ib_csv_path = Path('IB.csv')
-    broker_files = []
-
-    # If ally.txt is present
-    if ally_path.is_file():
-        broker_files.append((str(ally_path), AllyParser()))
-
-    # If IB.csv is present
-    if ib_csv_path.is_file():
-        broker_files.append((str(ib_csv_path), IBParser()))
-
-    if not broker_files:
-        print("Error: neither ally.txt nor IB.csv found.")
+    # ----------------------------------------------------------------
+    # 1) Find ally's single activity file:  ./data/Ally/activity.txt
+    # ----------------------------------------------------------------
+    ally_path = Path('./data/Ally/activity.txt')
+    if not ally_path.is_file():
+        print(f"Error: Ally file not found at {ally_path}")
         sys.exit(1)
 
-    transactions_file = 'transactions.csv'
-    print(f"Building transactions from the following source(s) into {transactions_file}:")
+    # ----------------------------------------------------------------
+    # 2) Find all IB CSV files in ./data/IB/*.csv
+    # ----------------------------------------------------------------
+    ib_dir = Path('./data/IB')
+    ib_csv_paths = list(ib_dir.glob('*.csv'))
+    if not ib_csv_paths:
+        print(f"Warning: No IB csv files found in {ib_dir}. "
+              "If you expected IB files, please check your directory.")
+    # (We'll proceed even if no IB files are found—some people only use Ally.)
+
+    # ----------------------------------------------------------------
+    # 3) Build up our list of (filepath, parser) for the aggregator
+    # ----------------------------------------------------------------
+    broker_files = []
+    broker_files.append((str(ally_path), AllyParser()))
+    for csv_file in ib_csv_paths:
+        broker_files.append((str(csv_file), IBParser()))
+
+    # ----------------------------------------------------------------
+    # 4) Where to write out the cleaned files? => ./data/cleaned/
+    # ----------------------------------------------------------------
+    out_dir = Path('./data/cleaned')
+    out_dir.mkdir(parents=True, exist_ok=True)  # Make sure it exists
+
+    transactions_file = out_dir / 'transactions.csv'
+
+    print(f"Building transactions from these sources into {transactions_file}:")
     for fpath, parser in broker_files:
         print(" -", fpath, "via", parser.__class__.__name__)
 
-    build_transactions(broker_files, transactions_file)
+    # Create a single consolidated CSV
+    build_transactions(broker_files, transactions_file=str(transactions_file))
 
-    df = read_transactions(transactions_file)
+    # ----------------------------------------------------------------
+    # 5) Read, parse, and merge trades
+    # ----------------------------------------------------------------
+    df = read_transactions(str(transactions_file))
     df = merge_simultaneous(df)
     trades_df, unopened_df, unclosed_df = match_trades(df)
 
-    trades_df.to_csv('trades.csv', index=False)
-    unopened_df.to_csv('unopened.csv', index=False)
+    # ----------------------------------------------------------------
+    # 6) Write final results to ./data/cleaned/
+    # ----------------------------------------------------------------
+    trades_df.to_csv(out_dir / 'trades.csv', index=False)
+    unopened_df.to_csv(out_dir / 'unopened.csv', index=False)
 
     unclosed_df_original = unclosed_df.copy()
     if not unclosed_df.empty:
@@ -545,10 +573,13 @@ if __name__ == '__main__':
             'QTY': 'Quantity'
         }, inplace=True)
 
-    unclosed_df.to_csv('unclosed.csv', index=False)
+    unclosed_df.to_csv(out_dir / 'unclosed.csv', index=False)
 
-    print("\nProcessed trades written to trades.csv")
-    print("Unopened positions written to unopened.csv")
-    print("Unclosed positions (concise) written to unclosed.csv")
+    print("\nProcessed trades written to:", out_dir / 'trades.csv')
+    print("Unopened positions written to:", out_dir / 'unopened.csv')
+    print("Unclosed positions (concise) written to:", out_dir / 'unclosed.csv')
 
+    # ----------------------------------------------------------------
+    # 7) Optional consistency checks
+    # ----------------------------------------------------------------
     verify_consistency(df, trades_df, unopened_df, unclosed_df_original)
