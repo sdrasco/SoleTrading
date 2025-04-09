@@ -440,7 +440,7 @@ if __name__ == '__main__':
         "Individual_Trades": individual_trades_html,
 
         # Footer
-        "System_Name": "Steve Drasco"
+        "System_Name": "Sdrike Systems"
     }
 
     # 10) Render
