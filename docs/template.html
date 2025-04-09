@@ -72,23 +72,13 @@
       max-width: 1200px; 
     }
 
-    .report-banner {
-      text-align: center;
-      margin-bottom: 25px;
-      font-size: 1.1rem;
-    }
-    .report-banner p {
-      margin: 5px 0;
-      color: var(--neutral-text);
-    }
-
-    /* 2×4 card grid for Overall Performance (desktop) */
-    .metrics-container {
+    /* Cards for the 'Report Information' section */
+    .report-info-container {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(2, auto);
+      grid-template-columns: repeat(2, 1fr);
       gap: 20px;
       margin-top: 20px;
+      margin-bottom: 40px; /* Additional spacing before next section */
     }
     .metric-card {
       background-color: var(--card-bg);
@@ -107,6 +97,15 @@
       font-weight: 700;
       font-size: 1.2rem;
       color: var(--neutral-text);
+    }
+
+    /* Now the overall performance metrics revert to 2×4 = 8 cards total */
+    .metrics-container {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(2, auto);
+      gap: 20px;
+      margin-top: 20px;
     }
 
     /* TABLE STYLES */
@@ -199,7 +198,12 @@
     }
 
     @media (max-width: 768px) {
+      /* report info: switch to single column */
+      .report-info-container {
+        grid-template-columns: 1fr;
+      }
       .metrics-container {
+        /* 2 columns, 4 rows => 8 metrics total */
         grid-template-columns: repeat(2, 1fr);
         grid-template-rows: repeat(4, auto);
       }
@@ -260,6 +264,7 @@
 <body>
   <!-- Sticky navigation links to sections -->
   <nav class="top-nav">
+    <a href="#report-info">Report Info</a>
     <a href="#performance-metrics">Performance</a>
     <a href="#visualizations">Equity & Returns</a>
     <a href="#trade-factor-analysis">Analysis</a>
@@ -270,8 +275,20 @@
 
   <h1>Comprehensive Trading Performance Report</h1>
 
-  <div class="report-banner">
-    <p>Reporting Period: {{ Start_Date }} - {{ End_Date }}</p>
+  <!-- REPORT INFO CARDS: No extra heading -->
+  <div class="section" id="report-info">
+    <div class="report-info-container">
+      <div class="metric-card">
+        <div class="metric-title">Report Date</div>
+        <!-- e.g. "Wednesday, April 9, 2025 10:56 AM BST" -->
+        <div class="metric-value">{{ Report_Generated }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Trading Period</div>
+        <!-- e.g. "January 27 to April 8, 2025" -->
+        <div class="metric-value">{{ Reporting_Period }}</div>
+      </div>
+    </div>
   </div>
 
   <!-- Overall Performance Metrics (2×4 card grid) -->

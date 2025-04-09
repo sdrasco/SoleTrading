@@ -72,23 +72,13 @@
       max-width: 1200px; 
     }
 
-    .report-banner {
-      text-align: center;
-      margin-bottom: 25px;
-      font-size: 1.1rem;
-    }
-    .report-banner p {
-      margin: 5px 0;
-      color: var(--neutral-text);
-    }
-
-    /* 2×4 card grid for Overall Performance (desktop) */
-    .metrics-container {
+    /* Cards for the 'Report Information' section */
+    .report-info-container {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(2, auto);
+      grid-template-columns: repeat(2, 1fr);
       gap: 20px;
       margin-top: 20px;
+      margin-bottom: 40px; /* Additional spacing before next section */
     }
     .metric-card {
       background-color: var(--card-bg);
@@ -107,6 +97,15 @@
       font-weight: 700;
       font-size: 1.2rem;
       color: var(--neutral-text);
+    }
+
+    /* Now the overall performance metrics revert to 2×4 = 8 cards total */
+    .metrics-container {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(2, auto);
+      gap: 20px;
+      margin-top: 20px;
     }
 
     /* TABLE STYLES */
@@ -199,7 +198,12 @@
     }
 
     @media (max-width: 768px) {
+      /* report info: switch to single column */
+      .report-info-container {
+        grid-template-columns: 1fr;
+      }
       .metrics-container {
+        /* 2 columns, 4 rows => 8 metrics total */
         grid-template-columns: repeat(2, 1fr);
         grid-template-rows: repeat(4, auto);
       }
@@ -260,6 +264,7 @@
 <body>
   <!-- Sticky navigation links to sections -->
   <nav class="top-nav">
+    <a href="#report-info">Report Info</a>
     <a href="#performance-metrics">Performance</a>
     <a href="#visualizations">Equity & Returns</a>
     <a href="#trade-factor-analysis">Analysis</a>
@@ -270,8 +275,20 @@
 
   <h1>Comprehensive Trading Performance Report</h1>
 
-  <div class="report-banner">
-    <p>Reporting Period: 2025-01-27 - 2025-04-08</p>
+  <!-- REPORT INFO CARDS: No extra heading -->
+  <div class="section" id="report-info">
+    <div class="report-info-container">
+      <div class="metric-card">
+        <div class="metric-title">Report Date</div>
+        <!-- e.g. "Wednesday, April 9, 2025 10:56 AM BST" -->
+        <div class="metric-value">Wednesday, April 9, 2025 11:09 AM BST</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Trading Period</div>
+        <!-- e.g. "January 27 to April 8, 2025" -->
+        <div class="metric-value">January 27 to April 8, 2025</div>
+      </div>
+    </div>
   </div>
 
   <!-- Overall Performance Metrics (2×4 card grid) -->
@@ -625,6 +642,7 @@
       <th>DAY OF WEEK AT CLOSE</th>
       <th>TRADE DIRECTION</th>
       <th>WEEK</th>
+      <th>WIN</th>
     </tr>
   </thead>
   <tbody>
@@ -650,6 +668,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-01-27</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -673,6 +692,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-01-27</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -696,6 +716,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-02-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -719,6 +740,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-02-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>GOOG</td>
@@ -742,6 +764,7 @@
       <td>Wednesday</td>
       <td>CALL</td>
       <td>2025-02-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>GOOG</td>
@@ -765,6 +788,7 @@
       <td>Wednesday</td>
       <td>CALL</td>
       <td>2025-02-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>GOOG</td>
@@ -788,6 +812,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-02-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AAPL</td>
@@ -811,6 +836,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-02-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -834,6 +860,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-02-03</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>GOOG</td>
@@ -857,6 +884,7 @@
       <td>Thursday</td>
       <td>CALL</td>
       <td>2025-02-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -880,6 +908,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-02-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -903,6 +932,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -926,6 +956,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -949,6 +980,7 @@
       <td>Tuesday</td>
       <td>CALL</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AA</td>
@@ -972,6 +1004,7 @@
       <td>Tuesday</td>
       <td>CALL</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>STLD</td>
@@ -995,6 +1028,7 @@
       <td>Tuesday</td>
       <td>CALL</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1018,6 +1052,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AA</td>
@@ -1041,6 +1076,7 @@
       <td>Wednesday</td>
       <td>CALL</td>
       <td>2025-02-10</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>BABA</td>
@@ -1064,6 +1100,7 @@
       <td>Wednesday</td>
       <td>CALL</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>PDD</td>
@@ -1087,6 +1124,7 @@
       <td>Thursday</td>
       <td>CALL</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NVO</td>
@@ -1110,6 +1148,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1133,6 +1172,7 @@
       <td>Friday</td>
       <td>CALL</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1156,6 +1196,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-02-10</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>PDD</td>
@@ -1179,6 +1220,7 @@
       <td>Friday</td>
       <td>CALL</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>XPEV</td>
@@ -1202,6 +1244,7 @@
       <td>Friday</td>
       <td>CALL</td>
       <td>2025-02-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>BABA</td>
@@ -1225,6 +1268,7 @@
       <td>Tuesday</td>
       <td>CALL</td>
       <td>2025-02-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1248,6 +1292,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-02-17</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1271,6 +1316,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-02-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1294,6 +1340,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-02-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1317,6 +1364,7 @@
       <td>Wednesday</td>
       <td>CALL</td>
       <td>2025-02-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>META</td>
@@ -1340,6 +1388,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-02-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>BABA</td>
@@ -1363,6 +1412,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-02-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AMZN</td>
@@ -1386,6 +1436,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-02-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>BABA</td>
@@ -1409,6 +1460,7 @@
       <td>Friday</td>
       <td>CALL</td>
       <td>2025-02-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>PLTR</td>
@@ -1432,6 +1484,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>PLTR</td>
@@ -1455,6 +1508,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1478,6 +1532,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>PLTR</td>
@@ -1501,6 +1556,7 @@
       <td>Tuesday</td>
       <td>CALL</td>
       <td>2025-02-24</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>BABA</td>
@@ -1524,6 +1580,7 @@
       <td>Tuesday</td>
       <td>CALL</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1547,6 +1604,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1570,6 +1628,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1593,6 +1652,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1616,6 +1676,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>JD</td>
@@ -1639,6 +1700,7 @@
       <td>Wednesday</td>
       <td>CALL</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -1662,6 +1724,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>BABA</td>
@@ -1685,6 +1748,7 @@
       <td>Wednesday</td>
       <td>CALL</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -1708,6 +1772,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -1731,6 +1796,7 @@
       <td>Thursday</td>
       <td>CALL</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -1754,6 +1820,7 @@
       <td>Thursday</td>
       <td>CALL</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AAPL</td>
@@ -1777,6 +1844,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-02-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -1800,6 +1868,7 @@
       <td>Friday</td>
       <td>CALL</td>
       <td>2025-02-24</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -1823,6 +1892,7 @@
       <td>Friday</td>
       <td>CALL</td>
       <td>2025-02-24</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>BABA</td>
@@ -1846,6 +1916,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-03-03</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -1869,6 +1940,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-03-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -1892,6 +1964,7 @@
       <td>Tuesday</td>
       <td>CALL</td>
       <td>2025-03-03</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -1915,6 +1988,7 @@
       <td>Tuesday</td>
       <td>CALL</td>
       <td>2025-03-03</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>AAPL</td>
@@ -1938,6 +2012,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-03-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>JD</td>
@@ -1961,6 +2036,7 @@
       <td>Wednesday</td>
       <td>CALL</td>
       <td>2025-03-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>JD</td>
@@ -1984,6 +2060,7 @@
       <td>Wednesday</td>
       <td>CALL</td>
       <td>2025-03-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -2007,6 +2084,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-03-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>BABA</td>
@@ -2030,6 +2108,7 @@
       <td>Thursday</td>
       <td>CALL</td>
       <td>2025-03-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>SHOP</td>
@@ -2053,6 +2132,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2076,6 +2156,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-03</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>QQQ</td>
@@ -2099,6 +2180,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AAPL</td>
@@ -2122,6 +2204,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -2145,6 +2228,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>PLTR</td>
@@ -2168,6 +2252,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2191,6 +2276,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -2214,6 +2300,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2237,6 +2324,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>QQQ</td>
@@ -2260,6 +2348,7 @@
       <td>Wednesday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AAPL</td>
@@ -2283,6 +2372,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>QQQ</td>
@@ -2306,6 +2396,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -2329,6 +2420,7 @@
       <td>Friday</td>
       <td>CALL</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AAPL</td>
@@ -2352,6 +2444,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-10</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>BABA</td>
@@ -2375,6 +2468,7 @@
       <td>Monday</td>
       <td>CALL</td>
       <td>2025-03-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AAPL</td>
@@ -2398,6 +2492,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-03-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -2421,6 +2516,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-03-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NVDA</td>
@@ -2444,6 +2540,7 @@
       <td>Tuesday</td>
       <td>CALL</td>
       <td>2025-03-17</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2467,6 +2564,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-03-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2490,6 +2588,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-03-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -2513,6 +2612,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-17</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>JD</td>
@@ -2536,6 +2636,7 @@
       <td>Friday</td>
       <td>CALL</td>
       <td>2025-03-17</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -2559,6 +2660,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-03-24</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -2582,6 +2684,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-03-24</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>QQQ</td>
@@ -2605,6 +2708,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-24</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2628,6 +2732,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -2651,6 +2756,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-24</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>GLD</td>
@@ -2674,6 +2780,7 @@
       <td>Monday</td>
       <td>CALL</td>
       <td>2025-03-31</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2697,6 +2804,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-03-31</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>QQQ</td>
@@ -2720,6 +2828,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-03-31</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -2743,6 +2852,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-03-31</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -2766,6 +2876,7 @@
       <td>Thursday</td>
       <td>PUT</td>
       <td>2025-03-31</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>XLE</td>
@@ -2789,6 +2900,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-31</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2812,6 +2924,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-31</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>NKE</td>
@@ -2835,6 +2948,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-31</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2858,6 +2972,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-31</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>XLF</td>
@@ -2881,6 +2996,7 @@
       <td>Friday</td>
       <td>PUT</td>
       <td>2025-03-31</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>CAT</td>
@@ -2904,6 +3020,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-04-07</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>JD</td>
@@ -2927,6 +3044,7 @@
       <td>Monday</td>
       <td>CALL</td>
       <td>2025-04-07</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2950,6 +3068,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-04-07</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>SPY</td>
@@ -2973,6 +3092,7 @@
       <td>Monday</td>
       <td>PUT</td>
       <td>2025-04-07</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>AAPL</td>
@@ -2996,6 +3116,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-04-07</td>
+      <td>1</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -3019,6 +3140,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-04-07</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -3042,6 +3164,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-04-07</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>TSLA</td>
@@ -3065,6 +3188,7 @@
       <td>Tuesday</td>
       <td>PUT</td>
       <td>2025-04-07</td>
+      <td>1</td>
     </tr>
   </tbody>
 </table>
