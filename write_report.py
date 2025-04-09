@@ -387,9 +387,10 @@ if __name__ == '__main__':
     # We'll combine pieces from strftime with the manual day integer
     # Note: %A = weekday name, %B = full month name, %Y = year, %I:%M %p = 12-hr time, %Z = zone
     report_generated_str = (
+        f"{now_uk.strftime('%I:%M %p %Z')}, "
         f"{now_uk.strftime('%A')}, "
-        f"{now_uk.strftime('%B')} {now_uk.day}, "   # no zero-padding by using now_uk.day
-        f"{now_uk.strftime('%Y %I:%M %p %Z')}"
+        f"{now_uk.strftime('%B')} {now_uk.day}, "
+        f"{now_uk.strftime('%Y')}"
     )
 
     # 8) Human-friendly reporting period (avoid zero-padding day)
