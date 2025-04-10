@@ -99,7 +99,7 @@
       color: var(--neutral-text);
     }
 
-    /* Now the overall performance metrics revert to 2×4 = 8 cards total */
+    /* Overall Performance Metrics (2×4 card grid) */
     .metrics-container {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -132,6 +132,13 @@
       color: var(--table-header-text);
       font-weight: 600;
       user-select: none; /* prevent text selection on click */
+      white-space: nowrap; /* prevent header text from wrapping */
+    }
+    /* New rule: Make span fill the header cell */
+    th span {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
     tr:nth-child(even) {
       background-color: var(--highlight-row-bg);
@@ -198,12 +205,10 @@
     }
 
     @media (max-width: 768px) {
-      /* report info: switch to single column */
       .report-info-container {
         grid-template-columns: 1fr;
       }
       .metrics-container {
-        /* 2 columns, 4 rows => 8 metrics total */
         grid-template-columns: repeat(2, 1fr);
         grid-template-rows: repeat(4, auto);
       }
@@ -335,14 +340,12 @@
   <!-- Trade Factor Analysis (Win Rate By Symbol & Feature Plots) -->
   <div class="section" id="trade-factor-analysis">
     <h2>Trade Factor Analysis</h2>
-
     <!-- Win Rate By Symbol (half-width) -->
     <div class="chart-grid" style="grid-template-columns: 1fr;">
       <div class="chart-card chart-card--half">
         <img src="data:image/png;base64,{{ Win_Rate_By_Symbol }}" alt="Win Rate by Symbol">
       </div>
     </div>
-
     <!-- Feature Plots (3×2 on desktop, collapses on mobile) -->
     <div class="chart-grid features-grid">
       {% for feature, plot_data in Feature_Plots.items() %}
@@ -383,14 +386,15 @@
   </div>
 
   <script>
-    //
-    // 1) Table Sorting Logic
-    //    Attach to any table with class="sortable-table"
-    //
     document.addEventListener("DOMContentLoaded", function() {
       function getCellValue(row, index) {
-        const text = row.children[index].innerText.trim();
-        // Clean out $, commas, % before parseFloat
+        const cell = row.children[index];
+        const span = cell.querySelector('span[data-sort]');
+        if (span) {
+          return span.getAttribute('data-sort');
+        }
+        const text = cell.innerText.trim();
+        // Remove currency symbols, commas, and percentage signs for numeric conversion.
         const cleaned = text.replace(/[\$,\%]/g, '');
         const val = parseFloat(cleaned);
         return isNaN(val) ? text : val;
@@ -422,11 +426,9 @@
               ? rows.sort((a, b) => compareRowsAsc(a, b, colIndex))
               : rows.sort((a, b) => compareRowsDesc(a, b, colIndex));
 
-            // Re-insert sorted rows
             const tbody = table.querySelector("tbody");
             sortedRows.forEach((r) => tbody.appendChild(r));
 
-            // reset all columns and set newState for the clicked one
             sortState.fill("none");
             sortState[colIndex] = newState;
           });
@@ -434,9 +436,6 @@
       });
     });
 
-    //
-    // 2) Lightbox for Charts (only if screen width > 768px)
-    //
     if (window.innerWidth > 768) {
       const overlay = document.getElementById('lightbox');
       const overlayImg = document.getElementById('lightbox-img');
@@ -449,14 +448,12 @@
         });
       });
 
-      // Close overlay on outside-click
       overlay.addEventListener('click', (e) => {
         if (e.target === overlay) {
           overlay.classList.remove('visible');
         }
       });
 
-      // Press ESC to close
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && overlay.classList.contains('visible')) {
           overlay.classList.remove('visible');

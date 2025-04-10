@@ -105,10 +105,25 @@ def compute_kpis(df):
 
 def generate_weekly_summary(df):
     """
-    Group trades by weekly close date and show
-    aggregated performance metrics per week.
+    Group trades by weekly close date and show aggregated performance metrics per week,
+    with improved aesthetics.
+
+    Aesthetic improvements:
+      - Date entries now include the year and are formatted as "3 Feb 2025".
+        The underlying data-sort attribute remains as the ISO date for proper sorting.
+        The inline style prevents line breaks within the date.
+      - The Profit column is formatted such that:
+            748   -> "$748"
+            1,299 -> "$1,299"
+            -6,055 -> "-$6,055"
+      - Win Rate is rounded to whole percentages.
+      - The "Avg Days Held" and "Wins" columns are removed from the final table.
+      - Header text now includes hover (tooltip) text.
     """
+    # 1. Compute the week’s start date (using the CLOSE DATE)
     df["WEEK"] = df["CLOSE DATE"].dt.to_period("W").apply(lambda r: r.start_time.date())
+    
+    # 2. Group by week and compute aggregated performance metrics
     weekly = df.groupby("WEEK").agg(
         net_profit=("NET PROFIT", "sum"),
         num_trades=("NET PROFIT", "count"),
@@ -116,41 +131,101 @@ def generate_weekly_summary(df):
         avg_return=("RETURN", "mean"),
         winning_trades=("NET PROFIT", lambda x: (x > 0).sum())
     ).reset_index()
-
+    
+    # 3. Compute the win rate (in percent)
     weekly["win_rate"] = (weekly["winning_trades"] / weekly["num_trades"]) * 100
     
-    # Sharpe ratio per week
+    # Drop columns we don't want to display
+    weekly.drop(columns=["avg_days_held", "winning_trades"], inplace=True)
+    
+    # 4. Compute Sharpe Ratio per week
     weekly["sharpe_ratio"] = df.groupby("WEEK")["RETURN"].apply(
         lambda x: x.mean() / x.std() if x.std() > 0 else np.nan
     ).values
     
-    # Adjusted sortino ratio per week
+    # 5. Compute Adjusted Sortino Ratio per week
     weekly["adjusted_sortino_ratio"] = df.groupby("WEEK")["RETURN"].apply(
         lambda x: compute_adjusted_sortino_ratio(pd.DataFrame({"RETURN": x}))
     ).values
 
+    # 6. Round all numeric columns (for intermediate calculations)
     numeric_cols = weekly.select_dtypes(include=[np.number]).columns
     weekly[numeric_cols] = weekly[numeric_cols].round(2)
-
-    # Replace NaN Sortino with "inf" in the final column
+    
+    # 7. Replace NaN adjusted sortino values with "inf" for display
     weekly["Adjusted Sortino"] = weekly["adjusted_sortino_ratio"].apply(
         lambda x: "inf" if np.isnan(x) else x
     )
-
-    # Add sequential Week # and rename columns
-    weekly.insert(0, "Week #", range(1, len(weekly) + 1))
+    
+    # 8. Add sequential Week # and rename the WEEK column
+    weekly.insert(0, "Week", range(1, len(weekly) + 1))
     weekly.rename(columns={"WEEK": "Starts"}, inplace=True)
-
     weekly.drop(columns=["adjusted_sortino_ratio"], inplace=True)
-    weekly.columns = [col.replace("_", " ").title() for col in weekly.columns]
+    
+    # 9. Format the date cells: display the full date as "3 Feb 2025", while including a data-sort
+    #    attribute (ISO format) for proper sorting, and prevent wrapping using white-space: nowrap.
+    def format_date_cell(d):
+        return f'<span style="white-space: nowrap;" data-sort="{d.strftime("%Y-%m-%d")}">{d.day} {d.strftime("%b %Y")}</span>'
+    weekly["Starts"] = weekly["Starts"].apply(format_date_cell)
+    
+    # 10. Format the net profit as specified
+    def format_profit(x):
+        x = int(round(x))
+        if x < 0:
+            return f"-${abs(x):,}"
+        else:
+            return f"${x:,}"
+    weekly["net_profit"] = weekly["net_profit"].apply(format_profit)
+    
+    # 11. Format win rate as whole percentages.
+    weekly["win_rate"] = weekly["win_rate"].apply(lambda x: f"{round(x)}%")
+    
+    # 12. Rename columns to final display names.
+    rename_map = {
+        "Starts": "Starting",       # Changed header; date entries now include the year.
+        "net_profit": "Profit",     # Updated header and formatted profit values.
+        "num_trades": "Trades",
+        "avg_return": "Trade Return",
+        "win_rate": "Win Rate",
+        "sharpe_ratio": "Sharpe",
+        "Adjusted Sortino": "Sortino"
+    }
+    weekly.rename(columns=rename_map, inplace=True)
+    
+    # 13. Reorder the columns as desired.
+    desired_order = ["Week", "Starting", "Profit", "Trades", "Win Rate", "Trade Return", "Sharpe", "Sortino"]
+    weekly = weekly[desired_order]
+    
+    # 14. Update header names to include tooltips.
+    # Define stub tooltip text for each header; update these as desired.
+    header_tooltips = {
+        "Week": "Sequential week number.",
+        "Starting": "First trading day of the week.",
+        "Trades": "Number of trades that closed this week.",
+        "Profit": "Change in equity for the week.",
+        "Trade Return": "Average return for trades closed this week.",
+        "Win Rate": "Ratio of wins to trades for the week.",
+        "Sharpe": "Sharpe Ratio: A measure of risk-adjusted return. It is the average return earned in excess of the risk‑free rate per unit of volatility or total risk. A higher Sharpe Ratio indicates that the trade returns are more favorable relative to the risk taken.",
+        "Sortino": "Adjusted Sortino Ratio: Like Sharpe, but ignores volatily from gains. It measures the excess return per unit of downside deviation, with a higher value indicating better risk-adjusted performance when adverse movements are considered."
+    }
+    # Wrap each header text in a span element that includes a title attribute.
+    new_headers = {col: f'<span title="{header_tooltips[col]}">{col}</span>' for col in weekly.columns}
+    weekly.rename(columns=new_headers, inplace=True)
+    
     return weekly
 
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
-import base64
-import io
-import math
+def generate_weekly_summary_html(df):
+    """
+    Generate the weekly summary as an HTML table.
+
+    Note:
+      - escape=False prevents pandas from escaping HTML, so the custom formatting (including
+        the header tooltips and date formatting with <span> tags) is rendered correctly.
+      - The table is assigned the class 'sortable-table' so that your template's JavaScript 
+        can enable interactive sorting.
+    """
+    weekly = generate_weekly_summary(df)
+    return weekly.to_html(escape=False, index=False, classes='sortable-table')
 
 def generate_equity_curve_plot(trades_df):
     """
@@ -231,7 +306,6 @@ def generate_trade_return_histogram(df):
     plt.close()
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-
 def generate_win_rate_by_symbol_plot(df):
     """
     Generate a horizontal bar plot showing Win Rate by Symbol
@@ -260,7 +334,6 @@ def generate_win_rate_by_symbol_plot(df):
     plt.savefig(buf, format="png", bbox_inches="tight")
     plt.close()
     return base64.b64encode(buf.getvalue()).decode("utf-8")
-
 
 def generate_feature_plots(df, features):
     """
@@ -319,7 +392,6 @@ def generate_feature_plots(df, features):
         plots[feature] = base64.b64encode(buf.getvalue()).decode("utf-8")
     return plots
 
-
 def render_report(template_file, context, output_file="docs/index.html"):
     """
     Use Jinja2 to render the final HTML report from a template.
@@ -336,29 +408,32 @@ def render_report(template_file, context, output_file="docs/index.html"):
 # Main Script
 # ------------------------------
 if __name__ == '__main__':
-    # 1) Load trades and compute KPIs
+    # 1) Load trades data and compute KPIs
     trades_df = load_trades("data/cleaned/trades.csv")
     kpis = compute_kpis(trades_df)
 
-    # 2) Weekly summary
-    weekly_summary = generate_weekly_summary(trades_df)
-    weekly_summary_html = weekly_summary.to_html(
-        index=False, classes="dataframe sortable-table", border=1
-    )
+    # 2) Generate the weekly summary as HTML using the updated helper function.
+    # This function already sets escape=False, so the custom <span> in the dates is preserved.
+    weekly_summary_html = generate_weekly_summary_html(trades_df)
 
-    # 3) Charts
+    # 3) Generate charts
     equity_curve_img = generate_equity_curve_plot(trades_df)
     trade_hist_img = generate_trade_return_histogram(trades_df)
 
-    # Feature plots
-    candidate_features = []
-    for col in ["DAYS_HELD", "DTE AT OPEN", "DAY_OF_WEEK_AT_OPEN", "DAY_OF_WEEK_AT_CLOSE", "TRADE DIRECTION"]:
-        if col in trades_df.columns:
-            candidate_features.append(col)
+    # Feature plots: determine candidate features
+    candidate_features = [
+        col for col in [
+            "DAYS_HELD",
+            "DTE AT OPEN",
+            "DAY_OF_WEEK_AT_OPEN",
+            "DAY_OF_WEEK_AT_CLOSE",
+            "TRADE DIRECTION"
+        ] if col in trades_df.columns
+    ]
     feature_plots = generate_feature_plots(trades_df, candidate_features)
     win_rate_by_symbol_img = generate_win_rate_by_symbol_plot(trades_df)
 
-    # 4) Unclosed positions
+    # 4) Process unclosed positions
     open_positions_df = pd.read_csv("data/cleaned/unclosed.csv")
     numeric_cols = open_positions_df.select_dtypes(include=[np.number]).columns
     open_positions_df[numeric_cols] = open_positions_df[numeric_cols].round(2)
@@ -367,7 +442,7 @@ if __name__ == '__main__':
         index=False, classes="dataframe sortable-table", border=1
     )
 
-    # 5) Individual trades table
+    # 5) Generate individual trades table
     trades_html_df = trades_df.copy()
     numeric_cols = trades_html_df.select_dtypes(include=[np.number]).columns
     trades_html_df[numeric_cols] = trades_html_df[numeric_cols].round(2)
@@ -376,25 +451,23 @@ if __name__ == '__main__':
         index=False, classes="dataframe sortable-table", border=1
     )
 
-    # 6) Net profit formatting
+    # 6) Format net profit with commas and dollar sign, handling negatives
     net_profit = kpis["net_profit"]
     if net_profit < 0:
         net_profit_str = f"-${abs(net_profit):,.2f}"
     else:
         net_profit_str = f"${net_profit:,.2f}"
 
-    # 7) Human-friendly "Report Generated" date/time, UK zone
+    # 7) Generate a human-friendly "Report Generated" timestamp in UK time.
     try:
         tz_uk = ZoneInfo("Europe/London")
         now_uk = datetime.datetime.now(tz_uk)
     except Exception:
-        # Fallback to UTC
+        # Fallback to UTC if London timezone cannot be loaded
         tz_uk = ZoneInfo("UTC")
         now_uk = datetime.datetime.now(tz_uk)
 
-    # Example: "Wednesday, April 9, 2025 10:56 AM BST"
-    # We'll combine pieces from strftime with the manual day integer
-    # Note: %A = weekday name, %B = full month name, %Y = year, %I:%M %p = 12-hr time, %Z = zone
+    # Example: "10:56 AM BST, Wednesday, April 9, 2025"
     report_generated_str = (
         f"{now_uk.strftime('%I:%M %p %Z')}, "
         f"{now_uk.strftime('%A')}, "
@@ -402,14 +475,13 @@ if __name__ == '__main__':
         f"{now_uk.strftime('%Y')}"
     )
 
-    # 8) Human-friendly reporting period (avoid zero-padding day)
+    # 8) Create a human-friendly reporting period string.
     start_date = trades_df["CLOSE DATE"].min()
     end_date = trades_df["CLOSE DATE"].max()
 
-    # e.g. "January 27 to April 8, 2025"
     if start_date.year == end_date.year:
         reporting_period_str = (
-            f"{start_date.strftime('%B')} {start_date.day} "  # no zero-padding
+            f"{start_date.strftime('%B')} {start_date.day} "
             f"to {end_date.strftime('%B')} {end_date.day}, {end_date.year}"
         )
     else:
@@ -418,13 +490,13 @@ if __name__ == '__main__':
             f"to {end_date.strftime('%B')} {end_date.day}, {end_date.year}"
         )
 
-    # 9) Build final context
+    # 9) Build the context dictionary for your template.
     context = {
-        # For the "Report Information"
+        # Report Information
         "Report_Generated": report_generated_str,
         "Reporting_Period": reporting_period_str,
 
-        # Overall Performance
+        # Overall Performance Metrics
         "Total_Trades": kpis["total_trades"],
         "Net_Profit": net_profit_str,
         "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.0f}%",
@@ -443,7 +515,7 @@ if __name__ == '__main__':
         "Feature_Plots": feature_plots,
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,
 
-        # Tables
+        # Tables (the weekly summary now contains proper date HTML)
         "Weekly_Summary": weekly_summary_html,
         "Open_Positions": open_positions_html,
         "Individual_Trades": individual_trades_html,
@@ -452,5 +524,5 @@ if __name__ == '__main__':
         "System_Name": "Sdrike Systems"
     }
 
-    # 10) Render
+    # 10) Render the final report using your template.
     render_report("docs/template.html", context)
