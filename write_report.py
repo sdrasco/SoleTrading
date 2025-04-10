@@ -39,7 +39,6 @@ def load_trades(filename):
     
     return df
 
-
 def compute_adjusted_sortino_ratio(df, target_return=0):
     """
     Compute the 'Adjusted Sortino Ratio' which accounts for
@@ -65,7 +64,6 @@ def compute_adjusted_sortino_ratio(df, target_return=0):
         1 + (skewness * sortino_ratio / 6) - (kurtosis * sortino_ratio**2 / 24)
     )
     return adjusted_sortino
-
 
 def compute_kpis(df):
     """
@@ -104,7 +102,6 @@ def compute_kpis(df):
         "equity_curve": df_sorted,  # for further charts
         "adjusted_sortino_ratio": adjusted_sortino_ratio
     }
-
 
 def generate_weekly_summary(df):
     """
@@ -148,6 +145,12 @@ def generate_weekly_summary(df):
     weekly.columns = [col.replace("_", " ").title() for col in weekly.columns]
     return weekly
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import base64
+import io
+import math
 
 def generate_equity_curve_plot(trades_df):
     """
@@ -161,19 +164,25 @@ def generate_equity_curve_plot(trades_df):
     daily_profit = df.groupby('DATE')['NET PROFIT'].sum().sort_index()
     daily_volume = df.groupby('DATE').size().sort_index()
 
-    # Fill missing days
-    all_dates = pd.date_range(daily_profit.index.min(), daily_profit.index.max(), freq='D')
+    # Define the date range from the first trade date up to today,
+    # ensuring that even days with no trading are included.
+    start_date = daily_profit.index.min()
+    end_date = pd.to_datetime('today').normalize()  # Extend to today's date
+    all_dates = pd.date_range(start_date, end_date, freq='D')
+    
+    # Reindex to include all dates in the range
     daily_profit = daily_profit.reindex(all_dates, fill_value=0)
     daily_volume = daily_volume.reindex(all_dates, fill_value=0)
     
     # Cumulative equity
     cumulative_equity = daily_profit.cumsum()
-    start_date = cumulative_equity.index[0]
-    x_values = 1 + (cumulative_equity.index - start_date).days / 7
+    x_values = 1 + (cumulative_equity.index - cumulative_equity.index[0]).days / 7
     
+    # Set up the plot with a secondary axis
     fig, ax1 = plt.subplots(figsize=(10, 6))
     ax2 = ax1.twinx()
     
+    # Make sure the trade volume (bar chart) is plotted behind the equity line
     ax1.set_zorder(2)
     ax1.patch.set_visible(False)
     ax2.set_zorder(1)
@@ -181,14 +190,14 @@ def generate_equity_curve_plot(trades_df):
     muted_blue = "#4a90e2"
     light_grey = "#D3D3D3"
 
-    # Plot volume on ax2
+    # Plot trade volume on the secondary axis (ax2)
     bar_width = 0.1
     ax2.bar(x_values, daily_volume.values, width=bar_width,
             color=light_grey, alpha=0.5, zorder=1)
     ax2.set_ylabel("Number of Trades", fontsize=21, color=light_grey)
     ax2.tick_params(axis='y', labelsize=21, colors=light_grey)
     
-    # Plot equity curve on ax1
+    # Plot cumulative equity on the primary axis (ax1)
     ax1.plot(x_values, cumulative_equity.values, marker='o', markersize=12,
              linestyle='-', color=muted_blue, zorder=2)
     ax1.set_xlabel("Week", fontsize=21)
@@ -196,6 +205,7 @@ def generate_equity_curve_plot(trades_df):
     ax1.tick_params(axis='x', labelsize=21)
     ax1.tick_params(axis='y', labelsize=21, colors=muted_blue)
 
+    # Set x-axis ticks based on weeks passed
     max_week = math.ceil(x_values.max())
     ax1.set_xticks(np.arange(1, max_week + 1))
     
@@ -204,7 +214,6 @@ def generate_equity_curve_plot(trades_df):
     plt.savefig(buf, format="png", bbox_inches="tight")
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode("utf-8")
-
 
 def generate_trade_return_histogram(df):
     """
