@@ -182,8 +182,8 @@ def generate_weekly_summary(df):
     
     # 12. Rename columns to final display names.
     rename_map = {
-        "Starts": "Starting",       # Changed header; date entries now include the year.
-        "net_profit": "Profit",     # Updated header and formatted profit values.
+        "Starts": "Starting",
+        "net_profit": "Profit",
         "num_trades": "Trades",
         "avg_return": "Trade Return",
         "win_rate": "Win Rate",
@@ -454,9 +454,9 @@ if __name__ == '__main__':
     # 6) Format net profit with commas and dollar sign, handling negatives
     net_profit = kpis["net_profit"]
     if net_profit < 0:
-        net_profit_str = f"-${abs(net_profit):,.2f}"
+        net_profit_str = f"-${abs(net_profit):,.0f}"
     else:
-        net_profit_str = f"${net_profit:,.2f}"
+        net_profit_str = f"${net_profit:,.0f}"
 
     # 7) Generate a human-friendly "Report Generated" timestamp in UK time.
     try:
