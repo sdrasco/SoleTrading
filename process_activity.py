@@ -1,4 +1,4 @@
-# process_activity.py
+#!/usr/bin/env python3
 
 import sys
 import csv
@@ -20,6 +20,7 @@ class BaseBrokerParser(ABC):
         """
         Must return a dict:
           {
+            'account': ...,
             'date': ...,
             'activity': ...,
             'qty': ...,
@@ -63,6 +64,7 @@ class AllyParser(BaseBrokerParser):
             symbol = sym_or_type.split()[0]
 
         return {
+            'account': 'Ally',
             'date': date,
             'activity': activity,
             'qty': qty,
@@ -172,6 +174,7 @@ class IBParser(BaseBrokerParser):
         description_str = f"{ticker} {expiry_str} {strike_formatted} {option_type}"
 
         return {
+            'account': 'IB',
             'date': date_time,
             'activity': activity,
             'qty': qty_str,
@@ -218,9 +221,12 @@ def build_transactions(broker_files, transactions_file='transactions.csv'):
     """
     For each file in broker_files, read it with the correct delimiter, pass each row to the parser,
     and write out a single combined CSV with columns:
-       DATE, ACTIVITY, QTY, SYMBOL, DESCRIPTION, PRICE, COMMISSION, FEES, AMOUNT
+       ACCOUNT, DATE, ACTIVITY, QTY, SYMBOL, DESCRIPTION, PRICE, COMMISSION, FEES, AMOUNT
     """
-    columns = ["DATE", "ACTIVITY", "QTY", "SYMBOL", "DESCRIPTION", "PRICE", "COMMISSION", "FEES", "AMOUNT"]
+    columns = [
+        "ACCOUNT", "DATE", "ACTIVITY", "QTY", "SYMBOL", "DESCRIPTION",
+        "PRICE", "COMMISSION", "FEES", "AMOUNT"
+    ]
 
     with open(transactions_file, 'w', newline='') as outfile:
         writer = csv.writer(outfile)
@@ -233,13 +239,13 @@ def build_transactions(broker_files, transactions_file='transactions.csv'):
             if file_path.endswith('.txt'):
                 # Ally
                 with open(file_path, 'r', newline='') as f:
-                    # Parse as a tab-delimited file
                     rowreader = csv.reader(f, delimiter='\t')
                     for row in rowreader:
                         parsed = parser.parse_row(row)
                         if not parsed:
                             continue
                         writer.writerow([
+                            parsed['account'],
                             parsed['date'],
                             parsed['activity'],
                             parsed['qty'],
@@ -254,13 +260,13 @@ def build_transactions(broker_files, transactions_file='transactions.csv'):
             elif file_path.endswith('.csv'):
                 # IB
                 with open(file_path, 'r', newline='') as f:
-                    # Parse as a comma-delimited file
                     rowreader = csv.reader(f)
                     for row in rowreader:
                         parsed = parser.parse_row(row)
                         if not parsed:
                             continue
                         writer.writerow([
+                            parsed['account'],
                             parsed['date'],
                             parsed['activity'],
                             parsed['qty'],
@@ -296,6 +302,7 @@ def parse_description(row):
 
 def read_transactions(file):
     df = pd.read_csv(file, thousands=',')
+    # Filter out "Cash Movement" just like before
     df = df[df['ACTIVITY'] != 'Cash Movement'].copy()
 
     currency_cols = ['PRICE', 'COMMISSION', 'FEES', 'AMOUNT']
@@ -307,6 +314,7 @@ def read_transactions(file):
 
     df['DATE'] = df['DATE'].apply(parse_mixed_date)
 
+    # Some brokers might show expired options as "Expired" activity
     df.loc[df['ACTIVITY'] == 'Expired', 'ACTIVITY'] = 'Sold To Close'
 
     df = df.apply(parse_description, axis=1)
@@ -325,6 +333,10 @@ def read_transactions(file):
     return df
 
 def merge_simultaneous(df):
+    """
+    Merges trades that have identical date/activity/option identity,
+    but might come in separate lines.  Weighted price is re-calculated.
+    """
     merged = []
     i = 0
     while i < len(df):
@@ -332,6 +344,7 @@ def merge_simultaneous(df):
             i + 1 < len(df)
             and df.at[i, 'DATE'] == df.at[i + 1, 'DATE']
             and df.at[i, 'ACTIVITY'] == df.at[i + 1, 'ACTIVITY']
+            and df.at[i, 'ACCOUNT'] == df.at[i + 1, 'ACCOUNT']  # must also be same account
             and df.at[i, 'OPT_SYMBOL'] == df.at[i + 1, 'OPT_SYMBOL']
             and df.at[i, 'STRIKE'] == df.at[i + 1, 'STRIKE']
             and df.at[i, 'EXPIRATION_DATE'] == df.at[i + 1, 'EXPIRATION_DATE']
@@ -358,17 +371,29 @@ def format_strike(strike):
     return round(strike, 2)
 
 def match_trades(df):
+    """
+    Matches open/close trades on a FIFO basis, but only within the same ACCOUNT.
+    """
     open_positions = {}
     trades = []
     unopened = []
 
     for _, row in df.iterrows():
-        key = (row['OPT_SYMBOL'], row['EXPIRATION_DATE'], row['STRIKE'], row['OPTION_TYPE'])
+        # Add ACCOUNT to the key so that cross-account matches don't happen:
+        key = (
+            row['ACCOUNT'],
+            row['OPT_SYMBOL'],
+            row['EXPIRATION_DATE'],
+            row['STRIKE'],
+            row['OPTION_TYPE']
+        )
+
         if row['ACTIVITY'] in ['Bought To Open', 'Sold To Open']:
             if key not in open_positions:
                 open_positions[key] = deque()
             row['_original_qty'] = row['QTY']
             open_positions[key].append(row.copy())
+
         elif row['ACTIVITY'] in ['Sold To Close', 'Bought To Close']:
             qty_to_match = row['QTY']
             close_per_contract = row['AMOUNT'] / row['QTY']
@@ -376,6 +401,7 @@ def match_trades(df):
             close_fees_per_contract = row['FEES'] / row['QTY']
             close_price = round(row['PRICE'], 2)
 
+            # If there's nothing in open_positions for this key, it's "unopened"
             if key not in open_positions or not open_positions[key]:
                 unopened.append(row.copy())
                 continue
@@ -417,6 +443,7 @@ def match_trades(df):
                     'FEES TOTAL': fees_total,
                     'NET PROFIT': net_profit,
                     'RETURN': trade_return,
+                    'ACCOUNT': open_row['ACCOUNT'],  # or row['ACCOUNT'], they should be the same
                 }
                 trades.append(trade_record)
 
@@ -429,35 +456,39 @@ def match_trades(df):
     return pd.DataFrame(trades), pd.DataFrame(unopened), pd.DataFrame(unclosed)
 
 def verify_consistency(df, trades_df, unopened_df, unclosed_df):
+    """
+    Optional debugging method to check whether
+    matched QTY sums line up with original open/close QTY sums.
+    """
     original_open = df[df['ACTIVITY'].str.contains('Open')].groupby(
-        ['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
+        ['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
     )['QTY'].sum().reset_index().rename(columns={'QTY': 'total_open'})
 
     original_close = df[df['ACTIVITY'].str.contains('Close')].groupby(
-        ['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
+        ['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
     )['QTY'].sum().reset_index().rename(columns={'QTY': 'total_close'})
 
     trades_group = trades_df.groupby(
-        ['SYMBOL', 'EXPIRATION', 'STRIKE PRICE', 'OPTION TYPE']
+        ['ACCOUNT', 'SYMBOL', 'EXPIRATION', 'STRIKE PRICE', 'OPTION TYPE']
     )['QTY'].sum().reset_index().rename(columns={'QTY': 'matched_qty'})
 
     unclosed_group = unclosed_df.groupby(
-        ['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
+        ['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
     )['QTY'].sum().reset_index().rename(columns={'QTY': 'unclosed_qty'})
 
     unopened_group = unopened_df.groupby(
-        ['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
+        ['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
     )['QTY'].sum().reset_index().rename(columns={'QTY': 'unopened_qty'})
 
     open_check = original_open.merge(
         trades_group,
-        left_on=['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
-        right_on=['SYMBOL', 'EXPIRATION', 'STRIKE PRICE', 'OPTION TYPE'],
+        left_on=['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
+        right_on=['ACCOUNT', 'SYMBOL', 'EXPIRATION', 'STRIKE PRICE', 'OPTION TYPE'],
         how='left'
     )
     open_check = open_check.merge(
         unclosed_group,
-        on=['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
+        on=['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
         how='left'
     )
     open_check['matched_qty'] = open_check['matched_qty'].fillna(0)
@@ -467,13 +498,13 @@ def verify_consistency(df, trades_df, unopened_df, unclosed_df):
 
     close_check = original_close.merge(
         trades_group,
-        left_on=['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
-        right_on=['SYMBOL', 'EXPIRATION', 'STRIKE PRICE', 'OPTION TYPE'],
+        left_on=['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
+        right_on=['ACCOUNT', 'SYMBOL', 'EXPIRATION', 'STRIKE PRICE', 'OPTION TYPE'],
         how='left'
     )
     close_check = close_check.merge(
         unopened_group,
-        on=['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
+        on=['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
         how='left'
     )
     close_check['matched_qty'] = close_check['matched_qty'].fillna(0)
@@ -485,15 +516,23 @@ def verify_consistency(df, trades_df, unopened_df, unclosed_df):
     if (open_check['open_diff'].abs() < 1e-6).all():
         print("  All open event quantities are consistent.")
     else:
-        print(open_check[['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
-                          'total_open', 'total_open_calc', 'open_diff']])
+        print(open_check[
+            [
+                'ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
+                'total_open', 'total_open_calc', 'open_diff'
+            ]
+        ])
 
     print("\nClose events consistency check:")
     if (close_check['close_diff'].abs() < 1e-6).all():
         print("  All close event quantities are consistent.")
     else:
-        print(close_check[['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
-                           'total_close', 'total_close_calc', 'close_diff']])
+        print(close_check[
+            [
+                'ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
+                'total_close', 'total_close_calc', 'close_diff'
+            ]
+        ])
 
 
 ##################################################################
@@ -517,7 +556,6 @@ if __name__ == '__main__':
     if not ib_csv_paths:
         print(f"Warning: No IB csv files found in {ib_dir}. "
               "If you expected IB files, please check your directory.")
-    # (We'll proceed even if no IB files are found—some people only use Ally.)
 
     # ----------------------------------------------------------------
     # 3) Build up our list of (filepath, parser) for the aggregator
@@ -563,8 +601,12 @@ if __name__ == '__main__':
             'PRICE': 'OPEN PRICE',
             'AMOUNT': 'OPEN AMOUNT'
         }, inplace=True)
-        unclosed_df = unclosed_df[['OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
-                                   'OPEN DATE', 'DTE AT OPEN', 'QTY', 'OPEN PRICE', 'OPEN AMOUNT']]
+        unclosed_df = unclosed_df[
+            [
+                'ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
+                'OPEN DATE', 'DTE AT OPEN', 'QTY', 'OPEN PRICE', 'OPEN AMOUNT'
+            ]
+        ]
         unclosed_df.rename(columns={
             'OPT_SYMBOL': 'Option Symbol',
             'EXPIRATION_DATE': 'Expiration',
