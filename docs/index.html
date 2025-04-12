@@ -30,6 +30,7 @@
       color: var(--primary-color);
       font-size: 2rem;
       margin-bottom: 40px;
+      text-align: center;
     }
 
     .choice-container {
@@ -48,6 +49,7 @@
       text-align: center;
       cursor: pointer;
       transition: transform 0.2s ease;
+      flex: 1 1 280px;
     }
 
     .choice-card:hover {
@@ -56,6 +58,7 @@
 
     .choice-card img {
       width: 100%;
+      height: auto;
       border-radius: 8px;
       margin-bottom: 15px;
     }
@@ -71,6 +74,18 @@
       font-size: 0.85rem;
       color: #777;
       text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 20px 10px;
+      }
+      .choice-card {
+        max-width: 90%;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
     }
   </style>
 </head>
@@ -102,4 +117,3 @@
   </footer>
 </body>
 </html>
-
