@@ -103,7 +103,7 @@ class IBParser(BaseBrokerParser):
         t_price_str  = row[8]   # e.g. "3.92"
         proceeds_str = row[10]  # e.g. "-392"
         comm_fee_str = row[11]  # e.g. "-1.05725"
-        code         = row[16]  # e.g. "O" or "C"
+        code         = row[16]  # e.g. "O" or "C" or "O;P" etc.
 
         # Convert quantity
         try:
@@ -111,18 +111,22 @@ class IBParser(BaseBrokerParser):
         except ValueError:
             return None
 
+        # Trim the code so "O;P" => "O", "C;something" => "C"
+        code_core = code.split(';')[0].strip()
+
         # Determine activity from code + sign of quantity
-        if code == 'O':
+        if code_core == 'O':
             if quantity > 0:
                 activity = 'Bought To Open'
             else:
                 activity = 'Sold To Open'
-        elif code == 'C':
+        elif code_core == 'C':
             if quantity > 0:
                 activity = 'Bought To Close'
             else:
                 activity = 'Sold To Close'
         else:
+            # Unrecognized code
             return None
 
         # We'll treat comm_fee_str as commission, fees=0
@@ -512,27 +516,30 @@ def verify_consistency(df, trades_df, unopened_df, unclosed_df):
     close_check['total_close_calc'] = close_check['matched_qty'] + close_check['unopened_qty']
     close_check['close_diff'] = close_check['total_close'] - close_check['total_close_calc']
 
+    # Filter to only the rows where there's a mismatch
+    open_problems = open_check[open_check['open_diff'].abs() >= 1e-6]
+    close_problems = close_check[close_check['close_diff'].abs() >= 1e-6]
+
     print("\nOpen events consistency check:")
-    if (open_check['open_diff'].abs() < 1e-6).all():
+    if open_problems.empty:
         print("  All open event quantities are consistent.")
     else:
-        print(open_check[
-            [
-                'ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
-                'total_open', 'total_open_calc', 'open_diff'
-            ]
-        ])
+        print(f"  Found {len(open_problems)} open event mismatch rows. Showing all:\n")
+        # Temporarily override Pandas display options so we don't see '...'
+        with pd.option_context('display.max_rows', None, 
+                               'display.max_columns', None,
+                               'display.width', 1000):
+            print(open_problems)
 
     print("\nClose events consistency check:")
-    if (close_check['close_diff'].abs() < 1e-6).all():
+    if close_problems.empty:
         print("  All close event quantities are consistent.")
     else:
-        print(close_check[
-            [
-                'ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
-                'total_close', 'total_close_calc', 'close_diff'
-            ]
-        ])
+        print(f"  Found {len(close_problems)} close event mismatch rows. Showing all:\n")
+        with pd.option_context('display.max_rows', None, 
+                               'display.max_columns', None,
+                               'display.width', 1000):
+            print(close_problems)
 
 
 ##################################################################
