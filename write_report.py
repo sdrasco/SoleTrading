@@ -392,7 +392,7 @@ def generate_feature_plots(df, features):
         plots[feature] = base64.b64encode(buf.getvalue()).decode("utf-8")
     return plots
 
-def render_report(template_file, context, output_file="docs/index.html"):
+def render_report(template_file, context, output_file="docs/report.html"):
     """
     Use Jinja2 to render the final HTML report from a template.
     """
@@ -525,4 +525,5 @@ if __name__ == '__main__':
     }
 
     # 10) Render the final report using your template.
-    render_report("docs/template.html", context)
+    render_report("docs/template.html", context, "docs/basic.html")
+    render_report("docs/template.html", context, "docs/pro.html")
