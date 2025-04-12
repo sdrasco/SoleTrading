@@ -412,24 +412,21 @@ if __name__ == '__main__':
     trades_df = load_trades("data/cleaned/trades.csv")
     kpis = compute_kpis(trades_df)
 
-    # 2) Generate the weekly summary as HTML using the updated helper function.
-    # This function already sets escape=False, so the custom <span> in the dates is preserved.
-    weekly_summary_html = generate_weekly_summary_html(trades_df)
+    # 2) Generate the weekly summary (advanced) as HTML
+    weekly_summary_html_pro = generate_weekly_summary_html(trades_df)
 
-    # 3) Generate charts
+    # 3) Generate charts (same for both pro and basic for now)
     equity_curve_img = generate_equity_curve_plot(trades_df)
     trade_hist_img = generate_trade_return_histogram(trades_df)
 
-    # Feature plots: determine candidate features
     candidate_features = [
-        col for col in [
-            "DAYS_HELD",
-            "DTE AT OPEN",
-            "DAY_OF_WEEK_AT_OPEN",
-            "DAY_OF_WEEK_AT_CLOSE",
-            "TRADE DIRECTION"
-        ] if col in trades_df.columns
+        "DAYS_HELD",
+        "DTE AT OPEN",
+        "DAY_OF_WEEK_AT_OPEN",
+        "DAY_OF_WEEK_AT_CLOSE",
+        "TRADE DIRECTION"
     ]
+    candidate_features = [col for col in candidate_features if col in trades_df.columns]
     feature_plots = generate_feature_plots(trades_df, candidate_features)
     win_rate_by_symbol_img = generate_win_rate_by_symbol_plot(trades_df)
 
@@ -442,32 +439,30 @@ if __name__ == '__main__':
         index=False, classes="dataframe sortable-table", border=1
     )
 
-    # 5) Generate individual trades table
+    # 5) Generate individual trades table (pro)
     trades_html_df = trades_df.copy()
     numeric_cols = trades_html_df.select_dtypes(include=[np.number]).columns
     trades_html_df[numeric_cols] = trades_html_df[numeric_cols].round(2)
     trades_html_df.columns = [col.replace("_", " ") for col in trades_html_df.columns]
-    individual_trades_html = trades_html_df.to_html(
+    individual_trades_html_pro = trades_html_df.to_html(
         index=False, classes="dataframe sortable-table", border=1
     )
 
-    # 6) Format net profit with commas and dollar sign, handling negatives
+    # 6) Format net profit for the pro context
     net_profit = kpis["net_profit"]
     if net_profit < 0:
         net_profit_str = f"-${abs(net_profit):,.0f}"
     else:
         net_profit_str = f"${net_profit:,.0f}"
 
-    # 7) Generate a human-friendly "Report Generated" timestamp in UK time.
+    # 7) Generate a "Report Generated" timestamp (UK time).
     try:
         tz_uk = ZoneInfo("Europe/London")
         now_uk = datetime.datetime.now(tz_uk)
     except Exception:
-        # Fallback to UTC if London timezone cannot be loaded
         tz_uk = ZoneInfo("UTC")
         now_uk = datetime.datetime.now(tz_uk)
 
-    # Example: "10:56 AM BST, Wednesday, April 9, 2025"
     report_generated_str = (
         f"{now_uk.strftime('%I:%M %p %Z')}, "
         f"{now_uk.strftime('%A')}, "
@@ -475,7 +470,7 @@ if __name__ == '__main__':
         f"{now_uk.strftime('%Y')}"
     )
 
-    # 8) Create a human-friendly reporting period string.
+    # 8) Create a human-friendly reporting period
     start_date = trades_df["CLOSE DATE"].min()
     end_date = trades_df["CLOSE DATE"].max()
 
@@ -490,13 +485,12 @@ if __name__ == '__main__':
             f"to {end_date.strftime('%B')} {end_date.day}, {end_date.year}"
         )
 
-    # 9) Build the context dictionary for your template.
-    context = {
-        # Report Information
+    # ------------------------------------------------------------------
+    # PRO REPORT CONTEXT (full detail)
+    # ------------------------------------------------------------------
+    context_pro = {
         "Report_Generated": report_generated_str,
         "Reporting_Period": reporting_period_str,
-
-        # Overall Performance Metrics
         "Total_Trades": kpis["total_trades"],
         "Net_Profit": net_profit_str,
         "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.0f}%",
@@ -508,22 +502,94 @@ if __name__ == '__main__':
         ),
         "Max_Drawdown": f"{kpis['max_drawdown_pct']:.0f}%",
         "Volatility": f"{kpis['volatility']:.2f}",
-
         # Charts
         "Equity_Curve": equity_curve_img,
         "Trade_Return_Histogram": trade_hist_img,
         "Feature_Plots": feature_plots,
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,
-
-        # Tables (the weekly summary now contains proper date HTML)
-        "Weekly_Summary": weekly_summary_html,
+        # Tables
+        "Weekly_Summary": weekly_summary_html_pro,
         "Open_Positions": open_positions_html,
-        "Individual_Trades": individual_trades_html,
-
+        "Individual_Trades": individual_trades_html_pro,
         # Footer
         "System_Name": "Sdrike Systems"
     }
 
-    # 10) Render the final report using your template.
-    render_report("docs/template.html", context, "docs/basic.html")
-    render_report("docs/template.html", context, "docs/pro.html")
+    # ------------------------------------------------------------------
+    # BASIC REPORT CONTEXT (stripped down)
+    # ------------------------------------------------------------------
+    # 1) Generate a simpler weekly summary (omit Sharpe/Sortino columns).
+    #    One quick approach is to re-run generate_weekly_summary, but
+    #    remove advanced columns from the resulting DataFrame before
+    #    converting to HTML.
+
+    weekly_basic = generate_weekly_summary(trades_df)
+    # Drop the advanced columns from that summary
+    # For example: columns with text 'Sharpe' or 'Sortino'.
+    weekly_basic.drop(columns=[col for col in weekly_basic.columns
+                               if ("Sharpe" in col or "Sortino" in col)],
+                      inplace=True, errors="ignore")
+    weekly_summary_html_basic = weekly_basic.to_html(
+        escape=False, index=False, classes='sortable-table'
+    )
+
+    # 2) Create a copy of trades for the basic table, removing advanced columns
+    #    and translating PUT/CALL into friendlier text.
+    basic_trades_df = trades_df.copy()
+    # Replace the trade direction
+    if "TRADE DIRECTION" in basic_trades_df.columns:
+        basic_trades_df["TRADE DIRECTION"] = basic_trades_df["TRADE DIRECTION"].replace({
+            "CALL": "Betting in favor",
+            "PUT": "Betting against"
+        })
+
+    # Remove columns that a “basic” user might find confusing
+    columns_to_remove = [
+        "SHARPE", "SORTINO", "ADJUSTED SORTINO RATIO",  # in case these exist
+        "VOLATILITY", "MAX DRAWDOWN", "DTE AT OPEN"     # or any columns you want to hide
+    ]
+    for col in columns_to_remove:
+        if col in basic_trades_df.columns:
+            basic_trades_df.drop(columns=[col], inplace=True)
+
+    # Round numeric columns
+    numeric_cols = basic_trades_df.select_dtypes(include=[np.number]).columns
+    basic_trades_df[numeric_cols] = basic_trades_df[numeric_cols].round(2)
+
+    # Rename the columns (underscores -> spaces)
+    basic_trades_df.columns = [col.replace("_", " ") for col in basic_trades_df.columns]
+
+    # Convert to HTML
+    individual_trades_html_basic = basic_trades_df.to_html(
+        index=False, classes="dataframe sortable-table", border=1
+    )
+
+    # 3) Create a simpler context that omits advanced metrics
+    context_basic = {
+        "Report_Generated": report_generated_str,
+        "Reporting_Period": reporting_period_str,
+        "Total_Trades": kpis["total_trades"],
+        "Net_Profit": net_profit_str,
+        "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.0f}%",
+        "Win_Rate": f"{kpis['win_rate']:.0f}%",
+        # Omit Sharpe, Sortino, Volatility, etc.
+        "Sharpe_Ratio": "",
+        "adjusted_sortino": "",
+        "Max_Drawdown": "",
+        "Volatility": "",
+        # Charts: We can reuse the same charts if desired
+        "Equity_Curve": equity_curve_img,
+        "Trade_Return_Histogram": trade_hist_img,
+        "Feature_Plots": feature_plots,  # or omit if it’s too complex
+        "Win_Rate_By_Symbol": win_rate_by_symbol_img,
+        # Tables (simplified weekly and trades)
+        "Weekly_Summary": weekly_summary_html_basic,
+        "Open_Positions": open_positions_html,
+        "Individual_Trades": individual_trades_html_basic,
+        # Footer
+        "System_Name": "Sdrike Systems"
+    }
+
+    # 4) Render both versions
+    render_report("docs/template_pro.html", context_pro, "docs/pro.html")     # Pro version
+    render_report("docs/template_basic.html", context_basic, "docs/basic.html") # Basic version
