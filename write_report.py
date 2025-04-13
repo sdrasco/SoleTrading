@@ -3,10 +3,15 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.path as mpath
+import matplotlib.patches as mpatches
+import matplotlib.colors as mcolors
+from matplotlib.colors import LinearSegmentedColormap, to_rgba
 import io, base64
 import datetime
 from zoneinfo import ZoneInfo
 from jinja2 import Template
+from scipy.interpolate import make_interp_spline
 
 # ------------------------------
 # Helper Functions for Analysis
@@ -290,6 +295,104 @@ def generate_equity_curve_plot(trades_df):
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
+def generate_basic_equity(trades_df):
+    """
+    Basic equity curve with a smoother, spline-interpolated line,
+    and a vertical gradient fill from the curve downward.
+    The gradient is half-opaque near the line, fading to fully transparent at y=0.
+    """
+
+    # Prepare the data
+    df = trades_df.copy()
+    df['DATE'] = pd.to_datetime(df['CLOSE DATE'].dt.date)
+    daily_profit = df.groupby('DATE')['NET PROFIT'].sum().sort_index()
+    start_date = daily_profit.index.min()
+    end_date = pd.to_datetime('today').normalize()
+    all_dates = pd.date_range(start_date, end_date, freq='D')
+    daily_profit = daily_profit.reindex(all_dates, fill_value=0)
+    cumulative_equity = daily_profit.cumsum()
+
+    # Spline interpolation
+    x_original = np.arange(len(cumulative_equity))
+    y_original = cumulative_equity.values
+
+    x_smooth = np.linspace(x_original.min(), x_original.max(), 300)
+    spline = make_interp_spline(x_original, y_original, k=3)
+    y_smooth = spline(x_smooth)
+
+    fig, ax = plt.subplots(figsize=(20, 6))
+
+    # 1) Plot the main line (fully opaque)
+    line_color = "#6BA368"
+    ax.plot(x_smooth, y_smooth, color=line_color, linewidth=6)
+
+    # Convert line_color to RGBA, then reduce alpha to 0.5 for the gradient's "darkest" part
+    rgba_full = to_rgba(line_color)  # e.g. (r, g, b, 1.0)
+    rgba_half = (rgba_full[0], rgba_full[1], rgba_full[2], 0.5)
+
+    # 2) Create a 2-step colormap: half-opaque at the top, fully transparent at the bottom
+    gradient_cmap = LinearSegmentedColormap.from_list(
+        "gradient_cmap",
+        [
+            (0, rgba_half),         # near the line => half opacity
+            (1, (1, 1, 1, 0))       # bottom => fully transparent
+        ]
+    )
+
+    # Build a gradient array from 0..1 in the vertical direction
+    height = 300
+    width = 300
+    grad_array = np.linspace(0, 1, height).reshape(-1, 1)
+    grad_array = np.repeat(grad_array, width, axis=1)
+
+    # Define bounding box for the gradient
+    xmin, xmax = x_smooth.min(), x_smooth.max()
+    ymin, ymax = 0, y_smooth.max()  # assumes no negative dips
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax * 1.05)
+
+    # Show the gradient
+    img = ax.imshow(
+        grad_array,
+        extent=[xmin, xmax, ymin, ymax],
+        cmap=gradient_cmap,
+        origin='lower',   # row 0 is bottom => fraction=0 => transparent
+        aspect='auto',
+        alpha=1.0,
+        zorder=-1         # behind the line
+    )
+
+    # 3) Clip the gradient to the polygon under the curve (above y=0)
+    poly_vertices = [(xv, yv) for xv, yv in zip(x_smooth, y_smooth)]
+    poly_vertices += [(xv, 0) for xv in reversed(x_smooth)]
+    codes = [mpath.Path.LINETO] * len(poly_vertices)
+    codes[0] = mpath.Path.MOVETO
+    clip_path = mpath.Path(poly_vertices, codes)
+    patch = mpatches.PathPatch(clip_path, transform=ax.transData)
+    img.set_clip_path(patch)
+
+    # 4) Axis labels, ticks, etc.
+    ax.set_ylabel("Profit ($)", fontsize=24, color="black")
+    ax.tick_params(axis='y', labelcolor="black", labelsize=20)
+    ax.tick_params(axis='x', labelsize=20, colors="black")
+
+    num_ticks = 6
+    xticks = np.linspace(x_original.min(), x_original.max(), num_ticks).astype(int)
+    xticks = np.clip(xticks, 0, len(cumulative_equity) - 1)
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(
+        [cumulative_equity.index[i].strftime('%d %b') for i in xticks],
+        rotation=45, ha='right'
+    )
+
+    plt.tight_layout()
+
+    # Convert to base64
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight")
+    plt.close(fig)
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
 def generate_trade_return_histogram(df):
     """
     Generate a histogram of trade returns (base64 encoded).
@@ -415,8 +518,12 @@ if __name__ == '__main__':
     # 2) Generate the weekly summary (advanced) as HTML
     weekly_summary_html_pro = generate_weekly_summary_html(trades_df)
 
-    # 3) Generate charts (same for both pro and basic for now)
-    equity_curve_img = generate_equity_curve_plot(trades_df)
+    # 3) Generate charts for Pro and Basic
+    #    -- Pro gets the old equity chart with volume
+    equity_curve_img_pro = generate_equity_curve_plot(trades_df)
+    #    -- Basic gets the new spline chart in green
+    equity_curve_img_basic = generate_basic_equity(trades_df)
+
     trade_hist_img = generate_trade_return_histogram(trades_df)
 
     candidate_features = [
@@ -463,11 +570,14 @@ if __name__ == '__main__':
         tz_uk = ZoneInfo("UTC")
         now_uk = datetime.datetime.now(tz_uk)
 
+    # IMPORTANT: Produce exactly 3 comma-separated parts, so the template sees
+    # splitted[0] -> time + timezone
+    # splitted[1] -> weekday
+    # splitted[2] -> month day year
     report_generated_str = (
         f"{now_uk.strftime('%I:%M %p %Z')}, "
         f"{now_uk.strftime('%A')}, "
-        f"{now_uk.strftime('%B')} {now_uk.day}, "
-        f"{now_uk.strftime('%Y')}"
+        f"{now_uk.strftime('%B %d %Y')}"
     )
 
     # 8) Create a human-friendly reporting period
@@ -502,8 +612,8 @@ if __name__ == '__main__':
         ),
         "Max_Drawdown": f"{kpis['max_drawdown_pct']:.0f}%",
         "Volatility": f"{kpis['volatility']:.2f}",
-        # Charts
-        "Equity_Curve": equity_curve_img,
+        # Charts (use the pro version of the equity curve)
+        "Equity_Curve": equity_curve_img_pro,
         "Trade_Return_Histogram": trade_hist_img,
         "Feature_Plots": feature_plots,
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,
@@ -518,14 +628,8 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------
     # BASIC REPORT CONTEXT (stripped down)
     # ------------------------------------------------------------------
-    # 1) Generate a simpler weekly summary (omit Sharpe/Sortino columns).
-    #    One quick approach is to re-run generate_weekly_summary, but
-    #    remove advanced columns from the resulting DataFrame before
-    #    converting to HTML.
-
+    # 1) Generate a simpler weekly summary
     weekly_basic = generate_weekly_summary(trades_df)
-    # Drop the advanced columns from that summary
-    # For example: columns with text 'Sharpe' or 'Sortino'.
     weekly_basic.drop(columns=[col for col in weekly_basic.columns
                                if ("Sharpe" in col or "Sortino" in col)],
                       inplace=True, errors="ignore")
@@ -533,63 +637,50 @@ if __name__ == '__main__':
         escape=False, index=False, classes='sortable-table'
     )
 
-    # 2) Create a copy of trades for the basic table, removing advanced columns
-    #    and translating PUT/CALL into friendlier text.
+    # 2) Create a copy of trades for the basic table
     basic_trades_df = trades_df.copy()
-    # Replace the trade direction
     if "TRADE DIRECTION" in basic_trades_df.columns:
         basic_trades_df["TRADE DIRECTION"] = basic_trades_df["TRADE DIRECTION"].replace({
             "CALL": "Betting in favor",
             "PUT": "Betting against"
         })
-
-    # Remove columns that a “basic” user might find confusing
-    columns_to_remove = [
-        "SHARPE", "SORTINO", "ADJUSTED SORTINO RATIO",  # in case these exist
-        "VOLATILITY", "MAX DRAWDOWN", "DTE AT OPEN"     # or any columns you want to hide
-    ]
+    columns_to_remove = ["SHARPE","SORTINO","ADJUSTED SORTINO RATIO","VOLATILITY",
+                         "MAX DRAWDOWN","DTE AT OPEN"]
     for col in columns_to_remove:
         if col in basic_trades_df.columns:
             basic_trades_df.drop(columns=[col], inplace=True)
 
-    # Round numeric columns
     numeric_cols = basic_trades_df.select_dtypes(include=[np.number]).columns
     basic_trades_df[numeric_cols] = basic_trades_df[numeric_cols].round(2)
-
-    # Rename the columns (underscores -> spaces)
     basic_trades_df.columns = [col.replace("_", " ") for col in basic_trades_df.columns]
-
-    # Convert to HTML
     individual_trades_html_basic = basic_trades_df.to_html(
         index=False, classes="dataframe sortable-table", border=1
     )
 
-    # 3) Create a simpler context that omits advanced metrics
+    # 3) Create a simpler context that uses the new basic chart
     context_basic = {
-        "Report_Generated": report_generated_str,
+        "Report_Generated": report_generated_str,     # 3-part version
         "Reporting_Period": reporting_period_str,
         "Total_Trades": kpis["total_trades"],
         "Net_Profit": net_profit_str,
         "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.0f}%",
         "Win_Rate": f"{kpis['win_rate']:.0f}%",
-        # Omit Sharpe, Sortino, Volatility, etc.
         "Sharpe_Ratio": "",
         "adjusted_sortino": "",
         "Max_Drawdown": "",
         "Volatility": "",
-        # Charts: We can reuse the same charts if desired
-        "Equity_Curve": equity_curve_img,
+        # Charts: use the basic equity curve here
+        "Equity_Curve": equity_curve_img_basic,
         "Trade_Return_Histogram": trade_hist_img,
-        "Feature_Plots": feature_plots,  # or omit if it’s too complex
+        "Feature_Plots": feature_plots,
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,
-        # Tables (simplified weekly and trades)
+        # Tables
         "Weekly_Summary": weekly_summary_html_basic,
         "Open_Positions": open_positions_html,
         "Individual_Trades": individual_trades_html_basic,
-        # Footer
         "System_Name": "Sdrike Systems"
     }
 
     # 4) Render both versions
-    render_report("docs/template_pro.html", context_pro, "docs/pro.html")     # Pro version
-    render_report("docs/template_basic.html", context_basic, "docs/basic.html") # Basic version
+    render_report("docs/template_pro.html", context_pro, "docs/pro.html")
+    render_report("docs/template_basic.html", context_basic, "docs/basic.html")

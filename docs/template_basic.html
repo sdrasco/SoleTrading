@@ -67,9 +67,9 @@
       margin-bottom: 15px;
     }
 
+    /* Allow wide content if screen is large */
     .section { 
       margin: 40px auto; 
-      max-width: 1200px; 
     }
 
     /* Cards for the 'Report Information' section */
@@ -97,6 +97,7 @@
       font-weight: 700;
       font-size: 1.2rem;
       color: var(--neutral-text);
+      line-height: 1.6; /* allow each piece to be on its own line */
     }
 
     /* Overall Performance Metrics (just a single row of 4) */
@@ -119,7 +120,7 @@
       overflow: hidden;
     }
     table.sortable-table {
-      cursor: pointer; /* indicate it's interactive */
+      cursor: pointer; /* indicate it's interactive for sorting */
     }
     th, td {
       border: 1px solid #ddd;
@@ -150,7 +151,7 @@
       display: grid;
       gap: 20px;
       margin: 20px auto;
-      max-width: 1200px;
+      max-width: 1600px; /* allow up to 1600px wide on large screens */
     }
     .chart-card {
       background-color: var(--card-bg);
@@ -158,17 +159,13 @@
       border-radius: 8px;
       padding: 10px;
       text-align: center;
-      cursor: pointer; /* indicate clickable images (desktop) */
+      /* Remove cursor pointer since lightbox is gone */
+      cursor: default;
     }
     .chart-card img {
       width: 100%;
       height: auto;
       border-radius: 5px;
-    }
-    /* NEW: Half-width chart card */
-    .chart-card--half {
-      max-width: 50%;
-      margin: 0 auto; /* center horizontally */
     }
 
     footer { 
@@ -207,95 +204,91 @@
         font-size: 1rem;
       }
     }
-
-    /* LIGHTBOX OVERLAY (hidden by default) */
-    .lightbox-overlay {
-      position: fixed;
-      top: 0; 
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background-color: rgba(0,0,0,0.7);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-      z-index: 9999;
-    }
-    .lightbox-overlay.visible {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .lightbox-overlay img {
-      max-width: 90%;
-      max-height: 90%;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-    }
   </style>
 </head>
 <body>
+
   <!-- Sticky navigation links to sections -->
   <nav class="top-nav">
-    <!-- Renamed link to “Performance So Far” -->
     <a href="#performance-metrics">Performance So Far</a>
   </nav>
 
   <!-- REPORT INFO CARDS -->
   <div class="section" id="report-info">
     <div class="report-info-container">
+
+      <!-- Report Date Card -->
       <div class="metric-card">
-        <div class="metric-value">{{ Report_Generated }}</div>
+        <div class="metric-title">Report Date</div>
+        <div class="metric-value">
+          {# 
+             Make sure your Python code sets Report_Generated to 
+             exactly 3 comma-separated parts, e.g.:
+               "09:12 PM BST, Wednesday, March 23 2025"
+             so we can split it into [time, day, full_date].
+          #}
+          {% set splitted = Report_Generated.split(', ') %}
+          <div>{{ splitted[0] }}</div> <!-- e.g. "09:12 PM BST" -->
+          <div>{{ splitted[1] }}</div> <!-- e.g. "Wednesday" -->
+          <div>{{ splitted[2] }}</div> <!-- e.g. "March 23 2025" -->
+        </div>
       </div>
+
+      <!-- Trading Period Card -->
       <div class="metric-card">
-        <div class="metric-value">{{ Reporting_Period }}</div>
+        <div class="metric-title">Trading Period</div>
+        <div class="metric-value">
+          {# 
+             "start date, year to end date, year"
+             e.g. "January 1, 2025 to January 14, 2025"
+          #}
+          {% set splitted_period = Reporting_Period.split(' to ') %}
+          <div>{{ splitted_period[0] }}</div> <!-- e.g. "January 1, 2025" -->
+          <div>to</div>
+          <div>{{ splitted_period[1] }}</div> <!-- e.g. "January 14, 2025" -->
+        </div>
       </div>
+
     </div>
   </div>
 
-  <!-- Overall Performance Metrics (heading removed) -->
+  <!-- Overall Performance Metrics -->
   <div class="section" id="performance-metrics">
     <div class="metrics-container">
       <div class="metric-card">
-        <div class="metric-title">Number of trades so far</div>
+        <div class="metric-title">Number of trades</div>
         <div class="metric-value">{{ Total_Trades }}</div>
       </div>
       <div class="metric-card">
-        <div class="metric-title">Average trade profit / trade price</div>
+        <div class="metric-title">Trade profit / trade price (averaged)</div>
         <div class="metric-value">{{ Avg_Trade_Return }}</div>
       </div>
       <div class="metric-card">
-        <div class="metric-title">Portion of trades that were profitable</div>
+        <div class="metric-title">Trades that were profitable</div>
         <div class="metric-value">{{ Win_Rate }}</div>
       </div>
       <div class="metric-card">
-        <div class="metric-title">Total profit so far</div>
+        <div class="metric-title">Current Total Profit</div>
         <div class="metric-value">{{ Net_Profit }}</div>
       </div>
     </div>
     
-    <!-- Single chart card, half-width for a smaller display -->
+    <!-- Full-width chart container -->
     <div class="chart-grid" style="grid-template-columns: 1fr;">
-      <div class="chart-card chart-card--half">
+      <div class="chart-card">
         <img src="data:image/png;base64,{{ Equity_Curve }}" alt="Equity Curve">
       </div>
     </div>
   </div>
 
-  <!-- (NO other sections remain) -->
-
   <footer>
     <p>&copy; 2025 Steve Drasco trading as {{ System_Name }}. All rights reserved.</p>
   </footer>
 
-  <!-- LIGHTBOX OVERLAY -->
-  <div class="lightbox-overlay" id="lightbox">
-    <img id="lightbox-img" src="" alt="Enlarged Chart" />
-  </div>
+  <!-- Remove the Lightbox overlay HTML & CSS entirely -->
 
   <script>
+    /* Only keep table-sorting code, remove any lightbox JS */
     document.addEventListener("DOMContentLoaded", function() {
       function getCellValue(row, index) {
         const cell = row.children[index];
@@ -321,7 +314,6 @@
         return compareRowsAsc(b, a, idx);
       }
 
-      // If no tables remain, this won't do anything. Otherwise still functional.
       const tables = document.querySelectorAll("table.sortable-table");
       tables.forEach((table) => {
         const headers = table.querySelectorAll("th");
@@ -346,31 +338,6 @@
         });
       });
     });
-
-    if (window.innerWidth > 768) {
-      const overlay = document.getElementById('lightbox');
-      const overlayImg = document.getElementById('lightbox-img');
-
-      const chartImages = document.querySelectorAll('.chart-card img');
-      chartImages.forEach((img) => {
-        img.addEventListener('click', (e) => {
-          overlayImg.src = e.target.src;
-          overlay.classList.add('visible');
-        });
-      });
-
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-          overlay.classList.remove('visible');
-        }
-      });
-
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && overlay.classList.contains('visible')) {
-          overlay.classList.remove('visible');
-        }
-      });
-    }
   </script>
 </body>
 </html>
