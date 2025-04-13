@@ -519,11 +519,8 @@ if __name__ == '__main__':
     weekly_summary_html_pro = generate_weekly_summary_html(trades_df)
 
     # 3) Generate charts for Pro and Basic
-    #    -- Pro gets the old equity chart with volume
-    equity_curve_img_pro = generate_equity_curve_plot(trades_df)
-    #    -- Basic gets the new spline chart in green
-    equity_curve_img_basic = generate_basic_equity(trades_df)
-
+    equity_curve_img_pro = generate_equity_curve_plot(trades_df)   # pro version
+    equity_curve_img_basic = generate_basic_equity(trades_df)      # basic version
     trade_hist_img = generate_trade_return_histogram(trades_df)
 
     candidate_features = [
@@ -557,12 +554,12 @@ if __name__ == '__main__':
 
     # 6) Format net profit for the pro context
     net_profit = kpis["net_profit"]
-    if net_profit < 0:
-        net_profit_str = f"-${abs(net_profit):,.0f}"
-    else:
-        net_profit_str = f"${net_profit:,.0f}"
+    net_profit_str = (
+        f"-${abs(net_profit):,.0f}" if net_profit < 0 else f"${net_profit:,.0f}"
+    )
 
-    # 7) Generate a "Report Generated" timestamp (UK time).
+    # 7) Generate a "Report Generated" timestamp (UK time),
+    #    ensuring exactly 3 comma-separated parts.
     try:
         tz_uk = ZoneInfo("Europe/London")
         now_uk = datetime.datetime.now(tz_uk)
@@ -570,30 +567,19 @@ if __name__ == '__main__':
         tz_uk = ZoneInfo("UTC")
         now_uk = datetime.datetime.now(tz_uk)
 
-    # IMPORTANT: Produce exactly 3 comma-separated parts, so the template sees
-    # splitted[0] -> time + timezone
-    # splitted[1] -> weekday
-    # splitted[2] -> month day year
     report_generated_str = (
-        f"{now_uk.strftime('%I:%M %p %Z')}, "
-        f"{now_uk.strftime('%A')}, "
-        f"{now_uk.strftime('%B %d %Y')}"
+        f"{now_uk.strftime('%I:%M %p %Z')}, "   # e.g. "09:12 PM BST"
+        f"{now_uk.strftime('%A')}, "            # e.g. "Wednesday,"
+        f"{now_uk.strftime('%d %B %Y')}"        # e.g. "13 April 2025"
     )
 
-    # 8) Create a human-friendly reporting period
+    # 8) Create a day-month-year reporting period (always show year).
     start_date = trades_df["CLOSE DATE"].min()
     end_date = trades_df["CLOSE DATE"].max()
-
-    if start_date.year == end_date.year:
-        reporting_period_str = (
-            f"{start_date.strftime('%B')} {start_date.day} "
-            f"to {end_date.strftime('%B')} {end_date.day}, {end_date.year}"
-        )
-    else:
-        reporting_period_str = (
-            f"{start_date.strftime('%B')} {start_date.day}, {start_date.year} "
-            f"to {end_date.strftime('%B')} {end_date.day}, {end_date.year}"
-        )
+    reporting_period_str = (
+        f"{start_date.strftime('%d %B %Y')} to {end_date.strftime('%d %B %Y')}"
+    )
+    # e.g. "13 April 2025 to 20 April 2025"
 
     # ------------------------------------------------------------------
     # PRO REPORT CONTEXT (full detail)
@@ -612,16 +598,13 @@ if __name__ == '__main__':
         ),
         "Max_Drawdown": f"{kpis['max_drawdown_pct']:.0f}%",
         "Volatility": f"{kpis['volatility']:.2f}",
-        # Charts (use the pro version of the equity curve)
         "Equity_Curve": equity_curve_img_pro,
         "Trade_Return_Histogram": trade_hist_img,
         "Feature_Plots": feature_plots,
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,
-        # Tables
         "Weekly_Summary": weekly_summary_html_pro,
         "Open_Positions": open_positions_html,
         "Individual_Trades": individual_trades_html_pro,
-        # Footer
         "System_Name": "Sdrike Systems"
     }
 
@@ -630,9 +613,10 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------
     # 1) Generate a simpler weekly summary
     weekly_basic = generate_weekly_summary(trades_df)
-    weekly_basic.drop(columns=[col for col in weekly_basic.columns
-                               if ("Sharpe" in col or "Sortino" in col)],
-                      inplace=True, errors="ignore")
+    weekly_basic.drop(
+        columns=[col for col in weekly_basic.columns if ("Sharpe" in col or "Sortino" in col)],
+        inplace=True, errors="ignore"
+    )
     weekly_summary_html_basic = weekly_basic.to_html(
         escape=False, index=False, classes='sortable-table'
     )
@@ -644,8 +628,10 @@ if __name__ == '__main__':
             "CALL": "Betting in favor",
             "PUT": "Betting against"
         })
-    columns_to_remove = ["SHARPE","SORTINO","ADJUSTED SORTINO RATIO","VOLATILITY",
-                         "MAX DRAWDOWN","DTE AT OPEN"]
+    columns_to_remove = [
+        "SHARPE","SORTINO","ADJUSTED SORTINO RATIO","VOLATILITY",
+        "MAX DRAWDOWN","DTE AT OPEN"
+    ]
     for col in columns_to_remove:
         if col in basic_trades_df.columns:
             basic_trades_df.drop(columns=[col], inplace=True)
@@ -660,7 +646,7 @@ if __name__ == '__main__':
     # 3) Create a simpler context that uses the new basic chart
     context_basic = {
         "Report_Generated": report_generated_str,     # 3-part version
-        "Reporting_Period": reporting_period_str,
+        "Reporting_Period": reporting_period_str,     # day-month-year
         "Total_Trades": kpis["total_trades"],
         "Net_Profit": net_profit_str,
         "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.0f}%",
@@ -669,12 +655,10 @@ if __name__ == '__main__':
         "adjusted_sortino": "",
         "Max_Drawdown": "",
         "Volatility": "",
-        # Charts: use the basic equity curve here
         "Equity_Curve": equity_curve_img_basic,
         "Trade_Return_Histogram": trade_hist_img,
         "Feature_Plots": feature_plots,
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,
-        # Tables
         "Weekly_Summary": weekly_summary_html_basic,
         "Open_Positions": open_positions_html,
         "Individual_Trades": individual_trades_html_basic,
