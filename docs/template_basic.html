@@ -67,7 +67,6 @@
       margin-bottom: 15px;
     }
 
-    /* Allow wide content if screen is large */
     .section { 
       margin: 40px auto; 
     }
@@ -151,9 +150,7 @@
       display: grid;
       gap: 20px;
       margin: 20px auto;
-      /* For desktop / large screens, one wide column */
-      grid-template-columns: 1fr;
-      max-width: 1600px; 
+      max-width: 1600px; /* wide container on large screens */
     }
     .chart-card {
       background-color: var(--card-bg);
@@ -161,13 +158,19 @@
       border-radius: 8px;
       padding: 10px;
       text-align: center;
-      /* Remove cursor pointer since lightbox is gone */
       cursor: default;
     }
-    .chart-card img {
+
+    /* 
+      The <picture> below will auto-select either the square 
+      or wide chart image, so we don’t need special 
+      media queries for .chart-card in CSS. 
+    */
+    .chart-card picture, .chart-card img {
       width: 100%;
       height: auto;
       border-radius: 5px;
+      display: block;
     }
 
     footer { 
@@ -178,23 +181,12 @@
     }
 
     @media (max-width: 768px) {
-      /* 
-         1) Performance metrics => 2 columns x 2 rows
-         2) Chart => also 2 columns, so it is as wide as the 4 cards combined
-      */
       .report-info-container {
         grid-template-columns: 1fr;
       }
       .metrics-container {
         grid-template-columns: repeat(2, 1fr);
         grid-template-rows: repeat(2, auto);
-      }
-      .chart-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-      /* Make the chart span both columns (column 1 to 3) */
-      .chart-card {
-        grid-column: 1 / 3; 
       }
     }
     @media (max-width: 480px) {
@@ -256,6 +248,14 @@
   <div class="section" id="performance-metrics">
     <div class="metrics-container">
       <div class="metric-card">
+        <div class="metric-title">Current Total Profit</div>
+        <div class="metric-value">{{ Net_Profit }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Trades that were profitable</div>
+        <div class="metric-value">{{ Win_Rate }}</div>
+      </div>
+      <div class="metric-card">
         <div class="metric-title">Number of trades</div>
         <div class="metric-value">{{ Total_Trades }}</div>
       </div>
@@ -263,20 +263,27 @@
         <div class="metric-title">Trade profit / price (averaged)</div>
         <div class="metric-value">{{ Avg_Trade_Return }}</div>
       </div>
-      <div class="metric-card">
-        <div class="metric-title">Trades that were profitable</div>
-        <div class="metric-value">{{ Win_Rate }}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-title">Current Total Profit</div>
-        <div class="metric-value">{{ Net_Profit }}</div>
-      </div>
     </div>
     
-    <!-- Chart container: single column on desktop, 2 columns on mobile -->
+    <!-- Chart container -->
     <div class="chart-grid">
       <div class="chart-card">
-        <img src="data:image/png;base64,{{ Equity_Curve }}" alt="Equity Curve">
+        <!-- 
+          Use a <picture> element with <source> for mobile,
+          so we can show a square chart below 768px, and a wide chart otherwise.
+        -->
+        <picture>
+          <!-- If screen is <= 768px, use the square chart -->
+          <source 
+            media="(max-width: 768px)"
+            srcset="data:image/png;base64,{{ Equity_Curve_Square }}"
+          />
+          <!-- Otherwise, use the wide chart -->
+          <img 
+            src="data:image/png;base64,{{ Equity_Curve_Wide }}" 
+            alt="Equity Curve"
+          />
+        </picture>
       </div>
     </div>
   </div>
