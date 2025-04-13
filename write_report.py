@@ -520,14 +520,15 @@ if __name__ == '__main__':
         now_uk = datetime.datetime.now(tz_uk)
 
     report_generated_str = (
-        f"{now_uk.strftime('%I:%M %p %Z')}, "   
+        f"{now_uk.strftime('%-I:%M %p %Z')}, "   
         f"{now_uk.strftime('%A')}, "            
         f"{now_uk.strftime('%d %B %Y')}"        
     )
 
     # 8) Create a day-month-year reporting period
     start_date = trades_df["CLOSE DATE"].min()
-    end_date = trades_df["CLOSE DATE"].max()
+    #end_date = trades_df["CLOSE DATE"].max() # to show date of last trade
+    end_date = pd.to_datetime('today').normalize() # to show current date
     reporting_period_str = (
         f"{start_date.strftime('%d %B %Y')} to {end_date.strftime('%d %B %Y')}"
     )
