@@ -36,10 +36,10 @@ def load_trades(filename):
     if "OPTION TYPE" in df.columns:
         df["OPTION TYPE"] = df["OPTION TYPE"].str.strip().str.upper()
         df["TRADE DIRECTION"] = df["OPTION TYPE"].map({
-            "C": "CALL", 
-            "P": "PUT", 
-            "CALL": "CALL", 
-            "PUT": "PUT"
+            "C": "Call", 
+            "P": "Put", 
+            "CALL": "Call", 
+            "PUT": "Put"
         })
     
     return df
@@ -112,8 +112,6 @@ def generate_weekly_summary(df):
     """
     Group trades by weekly close date and show aggregated performance metrics per week,
     with improved aesthetics.
-
-    Includes: date formatting, profit formatting, custom hover tooltips, etc.
     """
     df["WEEK"] = df["CLOSE DATE"].dt.to_period("W").apply(lambda r: r.start_time.date())
     
@@ -201,7 +199,8 @@ def generate_weekly_summary_html(df):
 def generate_equity_curve_plot(trades_df):
     """
     Generate a base64-encoded daily equity curve image
-    (plus daily trade volume on a secondary axis).
+    (plus daily trade volume on a secondary axis),
+    using #6BA368 for the main line and darker grey bars for volume.
     """
     df = trades_df.copy()
     df['DATE'] = pd.to_datetime(df['CLOSE DATE'].dt.date)
@@ -226,21 +225,21 @@ def generate_equity_curve_plot(trades_df):
     ax1.patch.set_visible(False)
     ax2.set_zorder(1)
     
-    muted_blue = "#4a90e2"
-    light_grey = "#D3D3D3"
+    main_green = "#6BA368"
+    volume_grey = "#777777"
 
     bar_width = 0.1
     ax2.bar(x_values, daily_volume.values, width=bar_width,
-            color=light_grey, alpha=0.5, zorder=1)
-    ax2.set_ylabel("Number of Trades", fontsize=21, color=light_grey)
-    ax2.tick_params(axis='y', labelsize=21, colors=light_grey)
+            color=volume_grey, alpha=0.5, zorder=1)
+    ax2.set_ylabel("Number of Trades", fontsize=21, color=volume_grey)
+    ax2.tick_params(axis='y', labelsize=21, colors=volume_grey)
     
     ax1.plot(x_values, cumulative_equity.values, marker='o', markersize=12,
-             linestyle='-', color=muted_blue, zorder=2)
+             linestyle='-', color=main_green, zorder=2)
     ax1.set_xlabel("Week", fontsize=21)
-    ax1.set_ylabel("Equity ($)", fontsize=21, color=muted_blue)
+    ax1.set_ylabel("Equity ($)", fontsize=21, color=main_green)
     ax1.tick_params(axis='x', labelsize=21)
-    ax1.tick_params(axis='y', labelsize=21, colors=muted_blue)
+    ax1.tick_params(axis='y', labelsize=21, colors=main_green)
 
     max_week = math.ceil(x_values.max())
     ax1.set_xticks(np.arange(1, max_week + 1))
@@ -253,24 +252,20 @@ def generate_equity_curve_plot(trades_df):
 
 def generate_basic_equity_wide(trades_df):
     """
-    Basic equity curve (wide version), 
-    with a smoother, spline-interpolated line and a gradient fill.
-    Figure size ~ (20, 6).
+    Basic equity curve (wide version) with #6BA368 color.
     """
     return _generate_basic_equity_custom(trades_df, fig_width=20, fig_height=6)
 
 def generate_basic_equity_square(trades_df):
     """
-    Basic equity curve (square version),
-    with a smoother, spline-interpolated line and a gradient fill.
-    Figure size ~ (8, 8).
+    Basic equity curve (square version) with #6BA368 color.
     """
     return _generate_basic_equity_custom(trades_df, fig_width=8, fig_height=8)
 
 def _generate_basic_equity_custom(trades_df, fig_width, fig_height):
     """
-    Internal helper that actually plots the line + gradient fill
-    but allows custom figure size.
+    Internal helper that plots the line + gradient fill 
+    in #6BA368 (muted green).
     """
     df = trades_df.copy()
     df['DATE'] = pd.to_datetime(df['CLOSE DATE'].dt.date)
@@ -353,10 +348,13 @@ def _generate_basic_equity_custom(trades_df, fig_width, fig_height):
 
 def generate_trade_return_histogram(df):
     """
-    Generate a histogram of trade returns (base64 encoded).
+    Generate a histogram of trade returns in #6BA368 (green).
     """
     plt.figure(figsize=(10,6))
-    plt.hist(df["RETURN"], bins=20, edgecolor="black")
+    plt.hist(
+        df["RETURN"], bins=20, edgecolor="black",
+        color="#6BA368"
+    )
     plt.xlabel("Trade Return", fontsize=21)
     plt.ylabel("Number of Trades", fontsize=21)
     plt.xticks(fontsize=21)
@@ -370,7 +368,7 @@ def generate_trade_return_histogram(df):
 def generate_win_rate_by_symbol_plot(df):
     """
     Generate a horizontal bar plot showing Win Rate by Symbol
-    (sorted ascending, then reversed).
+    (green bars).
     """
     summary = df.groupby('SYMBOL').agg(
         win_rate=('NET PROFIT', lambda x: (x > 0).mean() * 100),
@@ -382,7 +380,11 @@ def generate_win_rate_by_symbol_plot(df):
     num_bars = len(labels)
     bar_height = 0.6
     plt.figure(figsize=(8, max(3, 0.4 * num_bars)))
-    plt.barh(labels, summary['win_rate'], color='skyblue', edgecolor='black', height=bar_height)
+    plt.barh(
+        labels, summary['win_rate'], 
+        color="#6BA368", 
+        edgecolor='black', height=bar_height
+    )
     
     plt.ylabel('Symbol (Number of Trades)', fontsize=16)
     plt.xlabel('Win Rate (%)', fontsize=16)
@@ -397,28 +399,41 @@ def generate_win_rate_by_symbol_plot(df):
 
 def generate_feature_plots(df, features):
     """
-    Plot histograms or bar charts of features,
-    separated by Win vs. Loss.
+    Plots for numeric or categorical features, with
+    Wins in green (#6BA368) and Losses in darker grey (#777777).
     """
     plots = {}
     df["WIN"] = (df["NET PROFIT"] > 0).astype(int)
     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
+    win_color = "#6BA368"   # green
+    loss_color = "#777777"  # darker grey for better contrast
+
     for feature in features:
         if feature not in df.columns:
             continue
         plt.figure(figsize=(8, 6))
+
         if pd.api.types.is_numeric_dtype(df[feature]):
-            df_win = df[df["WIN"] == 1]
+            # Draw Losses first, then Wins so both remain visible
             df_loss = df[df["WIN"] == 0]
-            plt.hist(df_win[feature].dropna(), bins=20, alpha=0.5, label="Wins")
-            plt.hist(df_loss[feature].dropna(), bins=20, alpha=0.5, label="Losses")
+            df_win = df[df["WIN"] == 1]
+            plt.hist(
+                df_loss[feature].dropna(), bins=20, alpha=0.5,
+                color=loss_color, label="Losses"
+            )
+            plt.hist(
+                df_win[feature].dropna(), bins=20, alpha=0.5, 
+                color=win_color, label="Wins"
+            )
             plt.xlabel(feature.replace("_", " "), fontsize=14)
             plt.ylabel("Number of Trades", fontsize=14)
             plt.legend(fontsize=14)
             plt.xticks(fontsize=12)
             plt.yticks(fontsize=12)
+
         else:
+            # Categorical stacked bar
             cat_counts = df.groupby([feature, "WIN"]).size().reset_index(name="count")
             pivot_df = cat_counts.pivot(index=feature, columns="WIN", values="count").fillna(0)
             for col in [0, 1]:
@@ -433,7 +448,10 @@ def generate_feature_plots(df, features):
                 plt.close()
                 continue
 
-            pivot_df.plot(kind="bar", stacked=True, ax=plt.gca())
+            pivot_df.plot(
+                kind="bar", stacked=True, ax=plt.gca(),
+                color=[loss_color, win_color]
+            )
             plt.xlabel(feature.replace("_", " "), fontsize=14)
             plt.ylabel("Number of Trades", fontsize=14)
             plt.legend(["Losses", "Wins"], fontsize=14, loc="best")
@@ -445,6 +463,7 @@ def generate_feature_plots(df, features):
         plt.savefig(buf, format="png", bbox_inches="tight")
         plt.close()
         plots[feature] = base64.b64encode(buf.getvalue()).decode("utf-8")
+
     return plots
 
 def render_report(template_file, context, output_file="docs/report.html"):
@@ -470,7 +489,7 @@ if __name__ == '__main__':
     # 2) Generate the weekly summary (advanced) as HTML
     weekly_summary_html_pro = generate_weekly_summary_html(trades_df)
 
-    # 3) Generate charts for Pro
+    # 3) Generate charts for Pro (green theme + darker grey)
     equity_curve_img_pro = generate_equity_curve_plot(trades_df)   
     trade_hist_img = generate_trade_return_histogram(trades_df)
 
@@ -498,8 +517,6 @@ if __name__ == '__main__':
     # Create DTE from (Expiration - today's date)
     open_positions_df["DTE"] = (open_positions_df["Expiration"] - pd.to_datetime('today')).dt.days
 
-    # (No longer dropping "Expiration"! We want to keep it in the table.)
-
     # Round numeric columns
     numeric_cols = open_positions_df.select_dtypes(include=[np.number]).columns
     open_positions_df[numeric_cols] = open_positions_df[numeric_cols].round(2)
@@ -507,7 +524,7 @@ if __name__ == '__main__':
     # Replace underscores with spaces for all remaining columns
     open_positions_df.columns = [col.replace("_", " ") for col in open_positions_df.columns]
 
-    # Define a date-formatting function
+    # Format date columns
     def format_date_cell(d):
         if pd.isnull(d):
             return ""
@@ -516,17 +533,12 @@ if __name__ == '__main__':
             f'{d.day} {d.strftime("%b %Y")}'
             '</span>'
         )
-
-    # Format the OPEN DATE column
     if "OPEN DATE" in open_positions_df.columns:
         open_positions_df["OPEN DATE"] = open_positions_df["OPEN DATE"].apply(format_date_cell)
-
-    # Also format the Expiration column
     if "Expiration" in open_positions_df.columns:
         open_positions_df["Expiration"] = open_positions_df["Expiration"].apply(format_date_cell)
 
     def rename_and_reorder_open_positions(df):
-        # Define a mapping from old → new column headers
         rename_map = {
             "POSITION":       "Position",
             "Option Symbol":  "Symbol",
@@ -542,18 +554,15 @@ if __name__ == '__main__':
         }
         df = df.rename(columns=rename_map)
 
-        # Choose a display order that includes "Expiration Date"
         desired_order = [
             "Symbol", "Position", "Type", "Strike",
-            "Expiration Date",     # <--- newly added
-            "Open Date", "DTE (Open)", "DTE (Now)",
+            "Expiration Date", "Open Date", 
+            "DTE (Open)", "DTE (Now)", 
             "Qty", "Premium", "Cost"
         ]
-        # Filter to only columns that actually exist
         desired_order = [col for col in desired_order if col in df.columns]
         df = df[desired_order]
 
-        # Add tooltips
         header_tooltips = {
             "Position":         "Indicates Long or Short.",
             "Symbol":           "Underlying ticker for the option contract.",
@@ -564,7 +573,7 @@ if __name__ == '__main__':
             "DTE (Open)":       "Days-to-expiration at the time of opening.",
             "DTE (Now)":        "Days-to-expiration from today.",
             "Qty":              "Number of option contracts.",
-            "Premium":       "Fill price per share on opening.",
+            "Premium":          "Fill price per share on opening.",
             "Cost":             "Net cost or credit at opening."
         }
         
@@ -575,13 +584,10 @@ if __name__ == '__main__':
             else:
                 new_headers[col] = col
         df = df.rename(columns=new_headers)
-
         return df
 
-    # Reorder columns and rename headings
     open_positions_df = rename_and_reorder_open_positions(open_positions_df)
 
-    # Finally, create the HTML table
     open_positions_html = open_positions_df.to_html(
         index=False,
         classes="dataframe sortable-table",
@@ -590,14 +596,11 @@ if __name__ == '__main__':
     )
 
     # 5) Generate individual trades table (pro)
-
     trades_html_df = trades_df.copy()
-
-    # Round numeric columns
     numeric_cols = trades_html_df.select_dtypes(include=[np.number]).columns
     trades_html_df[numeric_cols] = trades_html_df[numeric_cols].round(2)
 
-    # Define a date-formatting function
+    # Format date columns
     def format_date_cell(d):
         if pd.isnull(d):
             return ""
@@ -606,25 +609,16 @@ if __name__ == '__main__':
             f'{d.day} {d.strftime("%b %Y")}'
             '</span>'
         )
-
-    # Format OPEN DATE, CLOSE DATE, EXPIRATION (if they exist)
     for date_col in ["OPEN DATE", "CLOSE DATE", "EXPIRATION"]:
         if date_col in trades_html_df.columns:
             trades_html_df[date_col] = pd.to_datetime(trades_html_df[date_col], errors="coerce")
             trades_html_df[date_col] = trades_html_df[date_col].apply(format_date_cell)
 
-    # Replace underscores with spaces
     trades_html_df.columns = [col.replace("_", " ") for col in trades_html_df.columns]
 
     def rename_and_reorder_completed_trades(df):
-        """
-        Renames & reorders columns for the Completed Trades table,
-        including a 'Position' column (Long or Short),
-        and adds optional tooltips for each column header.
-        """
-        # Rename columns
         rename_map = {
-            "POSITION":       "Position",        # <--- NEW
+            "POSITION":       "Position",
             "SYMBOL":         "Symbol",
             "OPTION TYPE":    "Type",
             "STRIKE PRICE":   "Strike",
@@ -642,28 +636,26 @@ if __name__ == '__main__':
             "RETURN":         "Return"
         }
         df = df.rename(columns=rename_map)
+        if "Type" in df.columns:
+            df["Type"] = df["Type"].str.title()
 
-        # Reorder columns 
         desired_order = [
-            "Symbol", "Position",  
-            "Type", "Strike", "Open Date",
-            "Close Date", "Expiration Date", "Days Held",
-            "Qty", "Premium (Open)", "Premium (Close)",
+            "Symbol", "Position", "Type", "Strike",
+            "Open Date", "Close Date", "Expiration Date",
+            "Days Held", "Qty", "Premium (Open)", "Premium (Close)",
             "Profit", "Return"
         ]
-        # Keep only columns that actually exist
         desired_order = [col for col in desired_order if col in df.columns]
         df = df[desired_order]
 
-        # Tooltips for each column
         header_tooltips = {
             "Symbol":          "Underlying ticker (option or stock).",
             "Position":        "Opened Long or Short.",
             "Type":            "Put, Call, or Stock.",
             "Strike":          "Option strike price.",
-            "Expiration Date": "Date the option contract expires.",
             "Open Date":       "Date this trade was opened.",
             "Close Date":      "Date this trade was closed.",
+            "Expiration Date": "Date the option contract expires.",
             "Days Held":       "Calendar days from open to close.",
             "Qty":             "Number of contracts/shares.",
             "Premium (Open)":  "Price per contract/share on opening.",
@@ -684,10 +676,8 @@ if __name__ == '__main__':
 
         return df
 
-    # Apply rename + reorder
     trades_html_df = rename_and_reorder_completed_trades(trades_html_df)
 
-    # Convert to HTML
     individual_trades_html_pro = trades_html_df.to_html(
         index=False,
         classes="dataframe sortable-table",
@@ -710,15 +700,14 @@ if __name__ == '__main__':
         now_uk = datetime.datetime.now(tz_uk)
 
     report_generated_str = (
-        f"{now_uk.strftime('%-I:%M %p %Z')}, "   
-        f"{now_uk.strftime('%A')}, "            
-        f"{now_uk.strftime('%d %B %Y')}"        
+        f"{now_uk.strftime('%-I:%M %p %Z')}, "
+        f"{now_uk.strftime('%A')}, "
+        f"{now_uk.strftime('%d %B %Y')}"
     )
 
     # 8) Create a day-month-year reporting period
     start_date = trades_df["CLOSE DATE"].min()
-    #end_date = trades_df["CLOSE DATE"].max() # to show date of last trade
-    end_date = pd.to_datetime('today').normalize() # to show current date
+    end_date = pd.to_datetime('today').normalize()
     reporting_period_str = (
         f"{start_date.strftime('%d %B %Y')} to {end_date.strftime('%d %B %Y')}"
     )
@@ -740,7 +729,7 @@ if __name__ == '__main__':
         ),
         "Max_Drawdown": f"{kpis['max_drawdown_pct']:.0f}%",
         "Volatility": f"{kpis['volatility']:.2f}",
-        # Charts for pro
+        # Charts in green + darker grey
         "Equity_Curve": equity_curve_img_pro,
         "Trade_Return_Histogram": trade_hist_img,
         "Feature_Plots": feature_plots,
@@ -766,7 +755,7 @@ if __name__ == '__main__':
         escape=False, index=False, classes='sortable-table'
     )
 
-    # 2) Create a copy of trades for the basic table
+    # 2) Copy trades for the basic table
     basic_trades_df = trades_df.copy()
     if "TRADE DIRECTION" in basic_trades_df.columns:
         basic_trades_df["TRADE DIRECTION"] = basic_trades_df["TRADE DIRECTION"].replace({
@@ -780,7 +769,6 @@ if __name__ == '__main__':
     for col in columns_to_remove:
         if col in basic_trades_df.columns:
             basic_trades_df.drop(columns=[col], inplace=True)
-
     numeric_cols = basic_trades_df.select_dtypes(include=[np.number]).columns
     basic_trades_df[numeric_cols] = basic_trades_df[numeric_cols].round(2)
     basic_trades_df.columns = [col.replace("_", " ") for col in basic_trades_df.columns]
@@ -788,7 +776,7 @@ if __name__ == '__main__':
         index=False, classes="dataframe sortable-table", border=1
     )
 
-    # 3) Generate two versions of the basic chart: wide and square
+    # 3) Generate two versions of the basic chart: wide & square
     equity_curve_img_basic_wide = generate_basic_equity_wide(trades_df)
     equity_curve_img_basic_square = generate_basic_equity_square(trades_df)
 
@@ -804,10 +792,10 @@ if __name__ == '__main__':
         "adjusted_sortino": "",
         "Max_Drawdown": "",
         "Volatility": "",
-        # Use both wide and square images in the template
+        # Basic green charts
         "Equity_Curve_Wide": equity_curve_img_basic_wide,
         "Equity_Curve_Square": equity_curve_img_basic_square,
-        # Other charts reused
+        # Other charts also in green + grey
         "Trade_Return_Histogram": trade_hist_img,
         "Feature_Plots": feature_plots,
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,
