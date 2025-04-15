@@ -251,9 +251,6 @@ def generate_equity_curve_plot(trades_df):
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-# ------------------------------
-# BASIC EQUITY CHARTS (WIDE + SQUARE)
-# ------------------------------
 def generate_basic_equity_wide(trades_df):
     """
     Basic equity curve (wide version), 
@@ -489,11 +486,50 @@ if __name__ == '__main__':
 
     # 4) Process unclosed positions
     open_positions_df = pd.read_csv("data/cleaned/unclosed.csv")
+
+    # Remove the "ACCOUNT" column (case-sensitive check)
+    if "ACCOUNT" in open_positions_df.columns:
+        open_positions_df.drop(columns=["ACCOUNT"], inplace=True)
+
+    # Convert OPEN DATE and EXPIRATION to datetime
+    open_positions_df["OPEN DATE"] = pd.to_datetime(open_positions_df["OPEN DATE"], errors="coerce")
+    open_positions_df["Expiration"] = pd.to_datetime(open_positions_df["Expiration"], errors="coerce")
+
+    # Create DTE from (EXPIRATION - today's date)
+    open_positions_df["DTE"] = (open_positions_df["Expiration"] - pd.to_datetime('today')).dt.days
+
+    # Remove the "EXPIRATION" column now that we've replaced it with DTE
+    open_positions_df.drop(columns=["Expiration"], inplace=True)
+
+    # Round numeric columns
     numeric_cols = open_positions_df.select_dtypes(include=[np.number]).columns
     open_positions_df[numeric_cols] = open_positions_df[numeric_cols].round(2)
+
+    # Replace underscores with spaces for all remaining columns
     open_positions_df.columns = [col.replace("_", " ") for col in open_positions_df.columns]
+
+    # Define a date-formatting function (same as the “Starting” column in weekly table)
+    def format_date_cell(d):
+        # d should be a Timestamp or datetime object
+        if pd.isnull(d):
+            return ""
+        return (
+            f'<span style="white-space: nowrap;" '
+            f'data-sort="{d.strftime("%Y-%m-%d")}">'
+            f'{d.day} {d.strftime("%b %Y")}'
+            '</span>'
+        )
+
+    # Format the OPEN DATE column the same way
+    if "OPEN DATE" in open_positions_df.columns:
+        open_positions_df["OPEN DATE"] = open_positions_df["OPEN DATE"].apply(format_date_cell)
+
+    # Finally, create the HTML table with escape=False so the date HTML remains intact
     open_positions_html = open_positions_df.to_html(
-        index=False, classes="dataframe sortable-table", border=1
+        index=False,
+        classes="dataframe sortable-table",
+        border=1,
+        escape=False
     )
 
     # 5) Generate individual trades table (pro)

@@ -587,48 +587,70 @@ if __name__ == '__main__':
     # Create a single consolidated CSV
     build_transactions(broker_files, transactions_file=str(transactions_file))
 
-    # ----------------------------------------------------------------
-    # 5) Read, parse, and merge trades
-    # ----------------------------------------------------------------
-    df = read_transactions(str(transactions_file))
-    df = merge_simultaneous(df)
-    trades_df, unopened_df, unclosed_df = match_trades(df)
+# ----------------------------------------------------------------
+# 5) Read, parse, and merge trades
+# ----------------------------------------------------------------
+df = read_transactions(str(transactions_file))
+df = merge_simultaneous(df)
+trades_df, unopened_df, unclosed_df = match_trades(df)
 
-    # ----------------------------------------------------------------
-    # 6) Write final results to ./data/cleaned/
-    # ----------------------------------------------------------------
-    trades_df.to_csv(out_dir / 'trades.csv', index=False)
-    unopened_df.to_csv(out_dir / 'unopened.csv', index=False)
+# ----------------------------------------------------------------
+# 6) Write final results to ./data/cleaned/
+# ----------------------------------------------------------------
+trades_df.to_csv(out_dir / 'trades.csv', index=False)
+unopened_df.to_csv(out_dir / 'unopened.csv', index=False)
 
-    unclosed_df_original = unclosed_df.copy()
-    if not unclosed_df.empty:
-        unclosed_df['DTE AT OPEN'] = (unclosed_df['EXPIRATION_DATE'] - unclosed_df['DATE']).dt.days
-        unclosed_df.rename(columns={
-            'DATE': 'OPEN DATE',
-            'PRICE': 'OPEN PRICE',
-            'AMOUNT': 'OPEN AMOUNT'
-        }, inplace=True)
-        unclosed_df = unclosed_df[
-            [
-                'ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE',
-                'OPEN DATE', 'DTE AT OPEN', 'QTY', 'OPEN PRICE', 'OPEN AMOUNT'
-            ]
+unclosed_df_original = unclosed_df.copy()
+if not unclosed_df.empty:
+    # 1) Add 'POSITION' = LONG or SHORT, based on the original ACTIVITY
+    #    (We keep ACTIVITY temporarily just to create this column.)
+    #    unclosed_df has the same columns as the open_row in match_trades()
+    #    so it includes 'ACTIVITY'.
+    unclosed_df['POSITION'] = unclosed_df['ACTIVITY'].map({
+        'Bought To Open': 'LONG',
+        'Sold To Open': 'SHORT'
+    }).fillna('UNKNOWN')  # Fallback if we ever see an unexpected open activity
+
+    # 2) Calculate DTE (Days to Expiration) at open
+    unclosed_df['DTE AT OPEN'] = (unclosed_df['EXPIRATION_DATE'] - unclosed_df['DATE']).dt.days
+
+    # 3) Rename columns for clarity
+    unclosed_df.rename(columns={
+        'DATE': 'OPEN DATE',
+        'PRICE': 'OPEN PRICE',
+        'AMOUNT': 'OPEN AMOUNT',
+        'OPT_SYMBOL': 'Option Symbol',
+        'EXPIRATION_DATE': 'Expiration',
+        'STRIKE': 'Strike Price',
+        'OPTION_TYPE': 'Option Type',
+        'QTY': 'Quantity'
+    }, inplace=True)
+
+    # 4) Re-select columns in the final unclosed.csv output
+    #    We do NOT keep ACTIVITY, COMMISSION, FEES, etc.
+    unclosed_df = unclosed_df[
+        [
+            'ACCOUNT',
+            'POSITION',         # show LONG or SHORT
+            'Option Symbol',
+            'Expiration',
+            'Strike Price',
+            'Option Type',
+            'OPEN DATE',
+            'DTE AT OPEN',
+            'Quantity',
+            'OPEN PRICE',
+            'OPEN AMOUNT'
         ]
-        unclosed_df.rename(columns={
-            'OPT_SYMBOL': 'Option Symbol',
-            'EXPIRATION_DATE': 'Expiration',
-            'STRIKE': 'Strike Price',
-            'OPTION_TYPE': 'Option Type',
-            'QTY': 'Quantity'
-        }, inplace=True)
+    ]
 
-    unclosed_df.to_csv(out_dir / 'unclosed.csv', index=False)
+unclosed_df.to_csv(out_dir / 'unclosed.csv', index=False)
 
-    print("\nProcessed trades written to:", out_dir / 'trades.csv')
-    print("Unopened positions written to:", out_dir / 'unopened.csv')
-    print("Unclosed positions (concise) written to:", out_dir / 'unclosed.csv')
+print("\nProcessed trades written to:", out_dir / 'trades.csv')
+print("Unopened positions written to:", out_dir / 'unopened.csv')
+print("Unclosed positions (concise) written to:", out_dir / 'unclosed.csv')
 
-    # ----------------------------------------------------------------
-    # 7) Optional consistency checks
-    # ----------------------------------------------------------------
-    verify_consistency(df, trades_df, unopened_df, unclosed_df_original)
+# ----------------------------------------------------------------
+# 7) Optional consistency checks
+# ----------------------------------------------------------------
+verify_consistency(df, trades_df, unopened_df, unclosed_df_original)
