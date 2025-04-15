@@ -495,11 +495,10 @@ if __name__ == '__main__':
     open_positions_df["OPEN DATE"] = pd.to_datetime(open_positions_df["OPEN DATE"], errors="coerce")
     open_positions_df["Expiration"] = pd.to_datetime(open_positions_df["Expiration"], errors="coerce")
 
-    # Create DTE from (EXPIRATION - today's date)
+    # Create DTE from (Expiration - today's date)
     open_positions_df["DTE"] = (open_positions_df["Expiration"] - pd.to_datetime('today')).dt.days
 
-    # Remove the "EXPIRATION" column now that we've replaced it with DTE
-    open_positions_df.drop(columns=["Expiration"], inplace=True)
+    # (No longer dropping "Expiration"! We want to keep it in the table.)
 
     # Round numeric columns
     numeric_cols = open_positions_df.select_dtypes(include=[np.number]).columns
@@ -508,81 +507,81 @@ if __name__ == '__main__':
     # Replace underscores with spaces for all remaining columns
     open_positions_df.columns = [col.replace("_", " ") for col in open_positions_df.columns]
 
-    # Define a date-formatting function (same as the “Starting” column in weekly table)
+    # Define a date-formatting function
     def format_date_cell(d):
-        # d should be a Timestamp or datetime object
         if pd.isnull(d):
             return ""
         return (
-            f'<span style="white-space: nowrap;" '
-            f'data-sort="{d.strftime("%Y-%m-%d")}">'
+            f'<span style="white-space: nowrap;" data-sort="{d.strftime("%Y-%m-%d")}">'
             f'{d.day} {d.strftime("%b %Y")}'
             '</span>'
         )
 
-    # Format the OPEN DATE column the same way
+    # Format the OPEN DATE column
     if "OPEN DATE" in open_positions_df.columns:
         open_positions_df["OPEN DATE"] = open_positions_df["OPEN DATE"].apply(format_date_cell)
+
+    # Also format the Expiration column
+    if "Expiration" in open_positions_df.columns:
+        open_positions_df["Expiration"] = open_positions_df["Expiration"].apply(format_date_cell)
 
     def rename_and_reorder_open_positions(df):
         # Define a mapping from old → new column headers
         rename_map = {
-            "POSITION":      "Position",
-            "Option Symbol": "Symbol",
-            "Option Type":   "Type",
-            "Strike Price":  "Strike",
-            "OPEN DATE":     "Open Date",
-            "DTE AT OPEN":   "DTE (Open)",
-            "Quantity":      "Qty",
-            "OPEN PRICE":    "Open Price",
-            "OPEN AMOUNT":   "Cost",
-            "DTE":           "DTE (Now)"
+            "POSITION":       "Position",
+            "Option Symbol":  "Symbol",
+            "Option Type":    "Type",
+            "Strike Price":   "Strike",
+            "Expiration":     "Expiration Date",
+            "OPEN DATE":      "Open Date",
+            "DTE AT OPEN":    "DTE (Open)",
+            "Quantity":       "Qty",
+            "OPEN PRICE":     "Premium",
+            "OPEN AMOUNT":    "Cost",
+            "DTE":            "DTE (Now)"
         }
-        # Apply renaming
         df = df.rename(columns=rename_map)
 
-        # Determine the display order you prefer
+        # Choose a display order that includes "Expiration Date"
         desired_order = [
-            "Position", "Symbol", "Type", "Strike", 
+            "Position", "Symbol", "Type", "Strike",
+            "Expiration Date",     # <--- newly added
             "Open Date", "DTE (Open)", "DTE (Now)",
-            "Qty", "Open Price", "Cost"
+            "Qty", "Premium", "Cost"
         ]
-        # Filter to only columns actually in df
+        # Filter to only columns that actually exist
         desired_order = [col for col in desired_order if col in df.columns]
         df = df[desired_order]
 
-        # Optionally add tooltips (like you did for the Weekly table)
+        # Add tooltips
         header_tooltips = {
-            "Position":    "Indicates Long or Short.",
-            "Symbol":      "Underlying ticker for the option contract.",
-            "Type":        "Put or Call.",
-            "Strike":      "Strike price of the option.",
-            "Open Date":   "Date this position was opened.",
-            "DTE (Open)":  "Days-to-expiration at the time of opening.",
-            "DTE (Now)":   "Days-to-expiration from today.",
-            "Qty":         "Number of option contracts.",
-            "Open Price":  "Fill price per contract on opening.",
-            "Cost":        "Net cost or credit at opening."
+            "Position":         "Indicates Long or Short.",
+            "Symbol":           "Underlying ticker for the option contract.",
+            "Type":             "Put or Call.",
+            "Strike":           "Strike price of the option.",
+            "Expiration Date":  "Date this option contract will expire.",
+            "Open Date":        "Date this position was opened.",
+            "DTE (Open)":       "Days-to-expiration at the time of opening.",
+            "DTE (Now)":        "Days-to-expiration from today.",
+            "Qty":              "Number of option contracts.",
+            "Premium":       "Fill price per share on opening.",
+            "Cost":             "Net cost or credit at opening."
         }
         
-        # Replace each column name with an HTML span containing a tooltip
         new_headers = {}
         for col in df.columns:
             if col in header_tooltips:
-                new_headers[col] = (
-                    f'<span title="{header_tooltips[col]}">{col}</span>'
-                )
+                new_headers[col] = f'<span title="{header_tooltips[col]}">{col}</span>'
             else:
                 new_headers[col] = col
-        
         df = df.rename(columns=new_headers)
 
-        return df        
+        return df
 
-    # call helper to reorder table
+    # Reorder columns and rename headings
     open_positions_df = rename_and_reorder_open_positions(open_positions_df)
 
-    # Finally, create the HTML table with escape=False so the date HTML remains intact
+    # Finally, create the HTML table
     open_positions_html = open_positions_df.to_html(
         index=False,
         classes="dataframe sortable-table",
