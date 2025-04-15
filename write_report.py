@@ -544,7 +544,7 @@ if __name__ == '__main__':
 
         # Choose a display order that includes "Expiration Date"
         desired_order = [
-            "Position", "Symbol", "Type", "Strike",
+            "Symbol", "Position", "Type", "Strike",
             "Expiration Date",     # <--- newly added
             "Open Date", "DTE (Open)", "DTE (Now)",
             "Qty", "Premium", "Cost"
@@ -590,12 +590,109 @@ if __name__ == '__main__':
     )
 
     # 5) Generate individual trades table (pro)
+
     trades_html_df = trades_df.copy()
+
+    # Round numeric columns
     numeric_cols = trades_html_df.select_dtypes(include=[np.number]).columns
     trades_html_df[numeric_cols] = trades_html_df[numeric_cols].round(2)
+
+    # Define a date-formatting function
+    def format_date_cell(d):
+        if pd.isnull(d):
+            return ""
+        return (
+            f'<span style="white-space: nowrap;" data-sort="{d.strftime("%Y-%m-%d")}">'
+            f'{d.day} {d.strftime("%b %Y")}'
+            '</span>'
+        )
+
+    # Format OPEN DATE, CLOSE DATE, EXPIRATION (if they exist)
+    for date_col in ["OPEN DATE", "CLOSE DATE", "EXPIRATION"]:
+        if date_col in trades_html_df.columns:
+            trades_html_df[date_col] = pd.to_datetime(trades_html_df[date_col], errors="coerce")
+            trades_html_df[date_col] = trades_html_df[date_col].apply(format_date_cell)
+
+    # Replace underscores with spaces
     trades_html_df.columns = [col.replace("_", " ") for col in trades_html_df.columns]
+
+    def rename_and_reorder_completed_trades(df):
+        """
+        Renames & reorders columns for the Completed Trades table,
+        including a 'Position' column (Long or Short),
+        and adds optional tooltips for each column header.
+        """
+        # Rename columns
+        rename_map = {
+            "POSITION":       "Position",        # <--- NEW
+            "SYMBOL":         "Symbol",
+            "OPTION TYPE":    "Type",
+            "STRIKE PRICE":   "Strike",
+            "EXPIRATION":     "Expiration Date",
+            "OPEN DATE":      "Open Date",
+            "CLOSE DATE":     "Close Date",
+            "DTE AT OPEN":    "DTE (Open)",
+            "DAYS HELD":      "Days Held",
+            "QTY":            "Qty",
+            "OPEN PRICE":     "Premium (Open)",
+            "CLOSE PRICE":    "Premium (Close)",
+            "OPEN AMOUNT":    "Open Amount",
+            "CLOSE AMOUNT":   "Close Amount",
+            "NET PROFIT":     "Profit",
+            "RETURN":         "Return"
+        }
+        df = df.rename(columns=rename_map)
+
+        # Reorder columns 
+        desired_order = [
+            "Symbol", "Position",  
+            "Type", "Strike", "Open Date",
+            "Close Date", "Expiration Date", "Days Held",
+            "Qty", "Premium (Open)", "Premium (Close)",
+            "Profit", "Return"
+        ]
+        # Keep only columns that actually exist
+        desired_order = [col for col in desired_order if col in df.columns]
+        df = df[desired_order]
+
+        # Tooltips for each column
+        header_tooltips = {
+            "Symbol":          "Underlying ticker (option or stock).",
+            "Position":        "Opened Long or Short.",
+            "Type":            "Put, Call, or Stock.",
+            "Strike":          "Option strike price.",
+            "Expiration Date": "Date the option contract expires.",
+            "Open Date":       "Date this trade was opened.",
+            "Close Date":      "Date this trade was closed.",
+            "Days Held":       "Calendar days from open to close.",
+            "Qty":             "Number of contracts/shares.",
+            "Premium (Open)":  "Price per contract/share on opening.",
+            "Premium (Close)": "Price per contract/share on closing.",
+            "Profit":          "Net P/L in dollars for this trade.",
+            "Return":          "Profit as fraction of cost basis."
+        }
+
+        new_headers = {}
+        for col in df.columns:
+            if col in header_tooltips:
+                new_headers[col] = (
+                    f'<span title="{header_tooltips[col]}">{col}</span>'
+                )
+            else:
+                new_headers[col] = col
+        df = df.rename(columns=new_headers)
+
+        return df
+
+    # Apply rename + reorder
+    trades_html_df = rename_and_reorder_completed_trades(trades_html_df)
+
+    # Convert to HTML
     individual_trades_html_pro = trades_html_df.to_html(
-        index=False, classes="dataframe sortable-table", border=1
+        index=False,
+        classes="dataframe sortable-table",
+        border=1,
+        escape=False
     )
 
     # 6) Format net profit for the pro context

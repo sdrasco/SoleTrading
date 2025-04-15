@@ -449,6 +449,17 @@ def match_trades(df):
                     'RETURN': trade_return,
                     'ACCOUNT': open_row['ACCOUNT'],  # or row['ACCOUNT'], they should be the same
                 }
+                # Determine if the open was Bought or Sold
+                open_activity = open_row['ACTIVITY']
+                if open_activity == 'Bought To Open':
+                    position_side = 'Long'
+                elif open_activity == 'Sold To Open':
+                    position_side = 'Short'
+                else:
+                    # Should only be Open activities, but just in case:
+                    position_side = 'Unknown'
+
+                trade_record['POSITION'] = position_side
                 trades.append(trade_record)
 
                 open_row['QTY'] -= matched_qty
