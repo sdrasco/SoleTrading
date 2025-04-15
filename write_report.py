@@ -524,6 +524,64 @@ if __name__ == '__main__':
     if "OPEN DATE" in open_positions_df.columns:
         open_positions_df["OPEN DATE"] = open_positions_df["OPEN DATE"].apply(format_date_cell)
 
+    def rename_and_reorder_open_positions(df):
+        # Define a mapping from old → new column headers
+        rename_map = {
+            "POSITION":      "Position",
+            "Option Symbol": "Symbol",
+            "Option Type":   "Type",
+            "Strike Price":  "Strike",
+            "OPEN DATE":     "Open Date",
+            "DTE AT OPEN":   "DTE (Open)",
+            "Quantity":      "Qty",
+            "OPEN PRICE":    "Open Price",
+            "OPEN AMOUNT":   "Cost",
+            "DTE":           "DTE (Now)"
+        }
+        # Apply renaming
+        df = df.rename(columns=rename_map)
+
+        # Determine the display order you prefer
+        desired_order = [
+            "Position", "Symbol", "Type", "Strike", 
+            "Open Date", "DTE (Open)", "DTE (Now)",
+            "Qty", "Open Price", "Cost"
+        ]
+        # Filter to only columns actually in df
+        desired_order = [col for col in desired_order if col in df.columns]
+        df = df[desired_order]
+
+        # Optionally add tooltips (like you did for the Weekly table)
+        header_tooltips = {
+            "Position":    "Indicates Long or Short.",
+            "Symbol":      "Underlying ticker for the option contract.",
+            "Type":        "Put or Call.",
+            "Strike":      "Strike price of the option.",
+            "Open Date":   "Date this position was opened.",
+            "DTE (Open)":  "Days-to-expiration at the time of opening.",
+            "DTE (Now)":   "Days-to-expiration from today.",
+            "Qty":         "Number of option contracts.",
+            "Open Price":  "Fill price per contract on opening.",
+            "Cost":        "Net cost or credit at opening."
+        }
+        
+        # Replace each column name with an HTML span containing a tooltip
+        new_headers = {}
+        for col in df.columns:
+            if col in header_tooltips:
+                new_headers[col] = (
+                    f'<span title="{header_tooltips[col]}">{col}</span>'
+                )
+            else:
+                new_headers[col] = col
+        
+        df = df.rename(columns=new_headers)
+
+        return df        
+
+    # call helper to reorder table
+    open_positions_df = rename_and_reorder_open_positions(open_positions_df)
+
     # Finally, create the HTML table with escape=False so the date HTML remains intact
     open_positions_html = open_positions_df.to_html(
         index=False,
