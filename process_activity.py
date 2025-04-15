@@ -607,8 +607,8 @@ if not unclosed_df.empty:
     #    unclosed_df has the same columns as the open_row in match_trades()
     #    so it includes 'ACTIVITY'.
     unclosed_df['POSITION'] = unclosed_df['ACTIVITY'].map({
-        'Bought To Open': 'LONG',
-        'Sold To Open': 'SHORT'
+        'Bought To Open': 'Long',
+        'Sold To Open': 'Short'
     }).fillna('UNKNOWN')  # Fallback if we ever see an unexpected open activity
 
     # 2) Calculate DTE (Days to Expiration) at open
