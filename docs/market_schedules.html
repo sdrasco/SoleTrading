@@ -26,6 +26,20 @@
       --neutral-bg:#f4f7f6;
       --neutral-text:#333;
     }
+    /* Dark‑mode overrides */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --neutral-bg: #1e293b;   /* slate‑800 */
+        --neutral-text: #f1f5f9; /* slate‑100 */
+
+        /* optional: higher‑contrast bar colours */
+        --uk-color: #8dd9c9;
+        --us-color: #ff7366;
+        --hk-color: #7aa2ff;
+        --jp-color: #ffb454;
+        --primary-accent: #38bdf8;  /* cyan‑400 */
+      }
+    }
     *{margin:0;padding:0;box-sizing:border-box}
     body{
       font-family:'Open Sans',sans-serif;
