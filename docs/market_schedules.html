@@ -160,23 +160,21 @@
         },
         plugins:{
           legend:{ display:false },
-          tooltip:{
-            callbacks:{
+          tooltip: {
+            callbacks: {
               label: ctx => {
                 const { dataIndex: i } = ctx;
                 const now = dayjs();
                 const { openLocal:o, closeLocal:c } = rowInfo[i];
 
-                if (now.isBefore(o)) {
-                  const m = o.diff(now, 'minute');
-                  return `Opens in ${Math.floor(m/60)}h ${m%60}m`;
+                // ▸ 1  OPEN right now
+                if (now.isAfter(o) && now.isBefore(c)) {
+                  return 'Open for business';
                 }
-                if (now.isBefore(c)) {
-                  const m = c.diff(now, 'minute');
-                  return `Open, closes in ${Math.floor(m/60)}h ${m%60}m`;
-                }
-                const m = o.add(1,'day').diff(now,'minute');
-                return `Opens in ${Math.floor(m/60)}h ${m%60}m`;
+
+                // ▸ 2  NOT YET (open later today or tomorrow)
+                const mins = (now.isBefore(o) ? o : o.add(1,'day')).diff(now,'minute');
+                return `Opens in ${Math.floor(mins/60)}h ${mins%60}m`;
               }
             }
           }
