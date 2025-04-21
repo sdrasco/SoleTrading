@@ -14,6 +14,7 @@
       --eu-color: #8fbcb9;
       --us-color: #c94c4c;
       --hk-color: #4c72b0;
+      --jp-color: #ff7f0e;
       --primary-accent: #8fbcb9;
       --neutral-bg: #f4f7f6;
       --neutral-text: #333;
@@ -51,17 +52,15 @@
   </section>
   <script>
     const markets = [
-      { label: 'UK', open: 8, close: 16, colorVar: '--uk-color' },
-      { label: 'EU', open: 8, close: 16, colorVar: '--eu-color' },
+      { label: 'UK/EU', open: 8, close: 16, colorVar: '--uk-color' },
       { label: 'US', open: 14.5, close: 21, colorVar: '--us-color' },
-      { label: 'HK', open: 1, close: 8, colorVar: '--hk-color' }
+      { label: 'HK', open: 1, close: 8, colorVar: '--hk-color' },
+      { label: 'JP', open: 0, close: 6, colorVar: '--jp-color' }
     ];
 
     function updateLocalTime() {
       const now = new Date();
-      const options = {
-        hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short'
-      };
+      const options = { hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short' };
       document.getElementById('local-time').textContent = now.toLocaleTimeString([], options);
     }
 
@@ -152,7 +151,6 @@
       updateLocalTime();
       chart.update('none');
     }
-    // initial call
     tick();
     setInterval(tick, 1000);
   </script>
