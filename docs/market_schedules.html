@@ -52,14 +52,14 @@
       max-width:800px; margin:40px auto;
     }
 
-    /* scrolling wrapper – stops the canvas being squished on phones */
+    /* scrolling wrapper – horizontal scroll on narrow screens */
     .chart-scroll{overflow-x:auto;}
 
-    /* DESKTOP: fixed height for sharp text */
+    /* fixed height everywhere for crisp text */
     .chart-scroll canvas{
       min-width:600px;
       width:100%!important;
-      height:420px;               /* crisp on big screens */
+      height:420px;               /* same on desktop & mobile */
     }
 
     /* ---------- Phone tweaks ---------- */
@@ -70,8 +70,8 @@
       .chart-container{padding:12px;margin:24px auto;}
 
       .chart-scroll canvas{
-        min-width:500px;          /* still scrollable */
-        height:380px;             /* fixed portrait height */
+        min-width:500px;          /* still scrollable horizontally */
+        /* height remains 420 px for correct aspect ratio */
       }
     }
   </style>
@@ -92,14 +92,11 @@
 
   <script>
     /* 1  markets */
-    const markets=[
-      {label:'London',tz:'Europe/London',sessions:[['08:00','16:30']],colorVar:'--uk-color'},
+    const markets=[{label:'London',tz:'Europe/London',sessions:[['08:00','16:30']],colorVar:'--uk-color'},
       {label:'New York',tz:'America/New_York',sessions:[['09:30','16:00']],colorVar:'--us-color'},
       {label:'Hong Kong',tz:'Asia/Hong_Kong',sessions:[['09:30','12:00'],['13:00','16:00']],colorVar:'--hk-color'},
-      {label:'Tokyo',tz:'Asia/Tokyo',sessions:[['09:00','15:00']],colorVar:'--jp-color'}
-    ];
+      {label:'Tokyo',tz:'Asia/Tokyo',sessions:[['09:00','15:00']],colorVar:'--jp-color'}];
 
-    /* 2  Day.js setup */
     dayjs.extend(dayjs_plugin_utc); dayjs.extend(dayjs_plugin_timezone);
     const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
@@ -119,7 +116,7 @@
       return{opens:O,lens:L,labels:Lab,colors:Col,maxEnd};
     }
 
-    /* 3  timeline plugin – mellow pulse */
+    /* 2  timeline plugin */
     const timeLinePlugin={id:'timeLine',afterDraw:ch=>{
       const n=dayjs(), h=n.hour()+n.minute()/60+n.second()/3600;
       const x=ch.scales.x.getPixelForValue(h),{top,bottom}=ch.scales.y,ctx=ch.ctx;
@@ -132,23 +129,22 @@
       }ctx.restore();
     }};
 
-    /* 4  chart init */
+    /* 3  chart init */
     const ctx=document.getElementById('marketChart').getContext('2d');
     const first=buildSeries(),tickColor=css('--neutral-text');
     const chart=new Chart(ctx,{type:'bar',
       data:{labels:first.labels,
         datasets:[
           {data:first.opens,backgroundColor:'transparent',stack:'grp'},
-          {data:first.lens,backgroundColor:first.colors,borderColor:first.colors,borderWidth:1,
+          {data:first.lens ,backgroundColor:first.colors,borderColor:first.colors,borderWidth:1,
            borderRadius:6,borderSkipped:false,stack:'grp'}]},
       options:{
-        responsive:true,maintainAspectRatio:false,indexAxis:'y',   /* allow fill height */
+        responsive:true,maintainAspectRatio:false,indexAxis:'y',
         scales:{
           x:{stacked:true,min:0,max:Math.max(24,Math.ceil(first.maxEnd/2)*2),
              ticks:{stepSize:2,callback:v=>`${v%24}:00`,color:tickColor}},
           y:{stacked:true,ticks:{color:tickColor}}},
-        plugins:{
-          legend:{display:false},
+        plugins:{legend:{display:false},
           tooltip:{callbacks:{label:({dataIndex:i})=>{
             const now=dayjs(),{openLocal:o,closeLocal:c}=rowInfo[i];
             if(now.isAfter(o)&&now.isBefore(c))return'Open for business';
@@ -156,10 +152,9 @@
             return`Opens in ${Math.floor(m/60)}h ${m%60}m`;}}}}
       },plugins:[timeLinePlugin]});
 
-    /* 5  clock + refresh */
+    /* 4  clock + refresh */
     function updateClock(){
-      const now=new Date();
-      const opt={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
+      const now=new Date(),opt={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
       document.getElementById('local-time').textContent=now.toLocaleTimeString([],opt);}
     function tick(){
       updateClock();
