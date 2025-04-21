@@ -49,13 +49,18 @@
       background:var(--panel-bg);
       padding:20px;border-radius:8px;
       box-shadow:var(--panel-shadow);
-      /* full‑width on phones, max 800 px on big screens */
       max-width:800px; margin:40px auto;
     }
 
     /* scrolling wrapper – stops the canvas being squished */
     .chart-scroll{overflow-x:auto;}
-    .chart-scroll canvas{min-width:600px;width:100%!important;height:auto!important}
+
+    /* fixed height so Chart.js renders on mobile */
+    .chart-scroll canvas{
+      min-width:600px;
+      width:100%!important;
+      height:320px;                 /* <‑‑ NEW */
+    }
 
     /* ---------- Phone tweaks ---------- */
     @media (max-width:480px){
@@ -63,6 +68,12 @@
       header h1{font-size:1.4rem}
       .time-display{font-size:1.2rem}
       .chart-container{padding:12px;margin:24px auto;}
+
+      /* canvas: a bit taller, narrower min‑width for easier scrolling */
+      .chart-scroll canvas{
+        min-width:500px;
+        height:380px;               /* <‑‑ taller on portrait phones */
+      }
     }
   </style>
 </head>
@@ -80,8 +91,8 @@
     </div>
   </section>
 
+  <!-- JS (unchanged) -->
   <script>
-    /* 1  markets (unchanged) */
     const markets=[{label:'London',tz:'Europe/London',sessions:[['08:00','16:30']],colorVar:'--uk-color'},
       {label:'New York',tz:'America/New_York',sessions:[['09:30','16:00']],colorVar:'--us-color'},
       {label:'Hong Kong',tz:'Asia/Hong_Kong',sessions:[['09:30','12:00'],['13:00','16:00']],colorVar:'--hk-color'},
@@ -106,7 +117,7 @@
       return{opens:O,lens:L,labels:Lab,colors:Col,maxEnd};
     }
 
-    /* timeline plugin – same mellow pulse (3.2 s) */
+    /* timeline plugin – mellow pulse */
     const timeLinePlugin={id:'timeLine',afterDraw:ch=>{
       const n=dayjs(), h=n.hour()+n.minute()/60+n.second()/3600;
       const x=ch.scales.x.getPixelForValue(h),{top,bottom}=ch.scales.y,ctx=ch.ctx;
