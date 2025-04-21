@@ -162,7 +162,11 @@
         datasets:[
           {data:first.opens, backgroundColor:'transparent', stack:'grp'},
           {data:first.lens,  backgroundColor:first.colors,
-           borderColor:first.colors, borderWidth:1, stack:'grp'}
+           borderColor:first.colors, borderWidth:1,
+           /* ROUNDED CORNERS ↓↓↓ */
+           borderRadius:6,   // px radius each corner
+           borderSkipped:false, // let radius show on every edge
+           stack:'grp'}
         ]
       },
       options:{
