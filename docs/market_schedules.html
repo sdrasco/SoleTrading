@@ -32,13 +32,38 @@
       }
       ::-webkit-scrollbar-thumb{background:#475569;border-radius:4px}
     }
+
+    /* ---------- Layout ---------- */
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Open Sans',sans-serif;background:var(--neutral-bg);color:var(--neutral-text);padding:20px}
+    body{
+      font-family:'Open Sans',sans-serif;
+      background:var(--neutral-bg);
+      color:var(--neutral-text);
+      padding:20px;
+    }
     header{text-align:center;margin-bottom:20px}
     header h1{color:var(--uk-color);margin-bottom:5px;font-size:1.8rem}
     .time-display{font-size:1.5rem;font-weight:600;margin-top:5px}
-    .chart-container{max-width:800px;margin:40px auto;background:var(--panel-bg);padding:20px;border-radius:8px;box-shadow:var(--panel-shadow)}
-    canvas{width:100%!important;height:auto!important}
+
+    .chart-container{
+      background:var(--panel-bg);
+      padding:20px;border-radius:8px;
+      box-shadow:var(--panel-shadow);
+      /* full‑width on phones, max 800 px on big screens */
+      max-width:800px; margin:40px auto;
+    }
+
+    /* scrolling wrapper – stops the canvas being squished */
+    .chart-scroll{overflow-x:auto;}
+    .chart-scroll canvas{min-width:600px;width:100%!important;height:auto!important}
+
+    /* ---------- Phone tweaks ---------- */
+    @media (max-width:480px){
+      body{padding:12px;}
+      header h1{font-size:1.4rem}
+      .time-display{font-size:1.2rem}
+      .chart-container{padding:12px;margin:24px auto;}
+    }
   </style>
 </head>
 
@@ -50,23 +75,20 @@
   </header>
 
   <section class="chart-container">
-    <canvas id="marketChart"></canvas>
+    <div class="chart-scroll">
+      <canvas id="marketChart"></canvas>
+    </div>
   </section>
 
   <script>
-    /* 1  markets */
-    const markets=[
-      {label:'London',tz:'Europe/London',sessions:[['08:00','16:30']],colorVar:'--uk-color'},
+    /* 1  markets (unchanged) */
+    const markets=[{label:'London',tz:'Europe/London',sessions:[['08:00','16:30']],colorVar:'--uk-color'},
       {label:'New York',tz:'America/New_York',sessions:[['09:30','16:00']],colorVar:'--us-color'},
       {label:'Hong Kong',tz:'Asia/Hong_Kong',sessions:[['09:30','12:00'],['13:00','16:00']],colorVar:'--hk-color'},
-      {label:'Tokyo',tz:'Asia/Tokyo',sessions:[['09:00','15:00']],colorVar:'--jp-color'}
-    ];
+      {label:'Tokyo',tz:'Asia/Tokyo',sessions:[['09:00','15:00']],colorVar:'--jp-color'}];
 
-    /* 2  Day.js */
     dayjs.extend(dayjs_plugin_utc); dayjs.extend(dayjs_plugin_timezone);
-
-    /* 3  helpers */
-    const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
     let rowInfo=[];
 
     function buildSeries(){
@@ -84,36 +106,29 @@
       return{opens:O,lens:L,labels:Lab,colors:Col,maxEnd};
     }
 
-    /* 4  timeline of ultra‑dense, slow‑pulsing dots */
-    const timeLinePlugin={
-      id:'timeLine',
-      afterDraw:ch=>{
-        const n=dayjs(), h=n.hour()+n.minute()/60+n.second()/3600;
-        const x=ch.scales.x.getPixelForValue(h), {top,bottom}=ch.scales.y, ctx=ch.ctx;
-        const accent=css('--primary-accent');
-        const dotGap=3, baseR=1.5;                    // dense & slim
-        ctx.save();
-        for(let y=top; y<=bottom; y+=dotGap){
-          const phase=(Date.now()/1600 + y*0.05)%Math.PI; // slower (1600 ms)
-          const r=baseR + Math.sin(phase)*0.8;           // gentle ±0.8 px
-          ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI);
-          ctx.fillStyle=accent; ctx.fill();
-        }
-        ctx.restore();
-      }
-    };
+    /* timeline plugin – same mellow pulse (3.2 s) */
+    const timeLinePlugin={id:'timeLine',afterDraw:ch=>{
+      const n=dayjs(), h=n.hour()+n.minute()/60+n.second()/3600;
+      const x=ch.scales.x.getPixelForValue(h),{top,bottom}=ch.scales.y,ctx=ch.ctx;
+      const a=css('--primary-accent'),gap=3,base=1.5;
+      ctx.save();
+      for(let y=top;y<=bottom;y+=gap){
+        const phase=(Date.now()/1600+y*0.05)%Math.PI;
+        const r=base+Math.sin(phase)*0.8;
+        ctx.beginPath();ctx.arc(x,y,r,0,2*Math.PI);ctx.fillStyle=a;ctx.fill();
+      }ctx.restore();
+    }};
 
-    /* 5  chart */
+    /* chart init */
     const ctx=document.getElementById('marketChart').getContext('2d');
-    const first=buildSeries(), tickColor=css('--neutral-text');
+    const first=buildSeries(),tickColor=css('--neutral-text');
     const chart=new Chart(ctx,{type:'bar',
       data:{labels:first.labels,
         datasets:[
           {data:first.opens,backgroundColor:'transparent',stack:'grp'},
           {data:first.lens,backgroundColor:first.colors,borderColor:first.colors,borderWidth:1,
-           borderRadius:6,borderSkipped:false,stack:'grp'}
-        ]},
-      options:{indexAxis:'y',
+            borderRadius:6,borderSkipped:false,stack:'grp'}]},
+      options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
         scales:{
           x:{stacked:true,min:0,max:Math.max(24,Math.ceil(first.maxEnd/2)*2),
              ticks:{stepSize:2,callback:v=>`${v%24}:00`,color:tickColor}},
@@ -121,36 +136,31 @@
         plugins:{legend:{display:false},
           tooltip:{callbacks:{label:({dataIndex:i})=>{
             const now=dayjs(),{openLocal:o,closeLocal:c}=rowInfo[i];
-            if(now.isAfter(o)&&now.isBefore(c)) return'Open for business';
+            if(now.isAfter(o)&&now.isBefore(c))return'Open for business';
             const m=(now.isBefore(o)?o:o.add(1,'day')).diff(now,'minute');
             return`Opens in ${Math.floor(m/60)}h ${m%60}m`;}}}}
-      },
-      plugins:[timeLinePlugin]});
+      },plugins:[timeLinePlugin]});
 
-    /* 6  clock + refresh */
+    /* clock + refresh */
     function updateClock(){
-      const now=new Date(), opt={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
-      document.getElementById('local-time').textContent=now.toLocaleTimeString([],opt);
-    }
+      const now=new Date(),opt={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
+      document.getElementById('local-time').textContent=now.toLocaleTimeString([],opt);}
     function tick(){
       updateClock();
       const {opens,lens,labels,colors,maxEnd}=buildSeries();
-      const now=dayjs(), curH=now.hour()+now.minute()/60,
+      const now=dayjs(),curH=now.hour()+now.minute()/60,
             needMax=Math.max(24,Math.ceil(Math.max(maxEnd,curH)/2)*2);
-
       chart.data.labels=labels;
       chart.data.datasets[0].data=opens;
       chart.data.datasets[1].data=lens;
       chart.data.datasets[1].backgroundColor=colors;
       chart.data.datasets[1].borderColor=colors;
       chart.options.scales.x.max=needMax;
-
       const tc=css('--neutral-text');
-      chart.options.scales.x.ticks.color=tc; chart.options.scales.y.ticks.color=tc;
-
+      chart.options.scales.x.ticks.color=tc;chart.options.scales.y.ticks.color=tc;
       chart.update('none');
     }
-    tick(); setInterval(tick,400);   /* slower loop to match mellow pulse */
+    tick(); setInterval(tick,400);
   </script>
 </body>
 </html>
