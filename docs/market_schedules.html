@@ -18,28 +18,43 @@
 
   <style>
     :root{
+      /* bar colours */
       --uk-color:#6b9080;
       --us-color:#c94c4c;
       --hk-color:#4c72b0;
       --jp-color:#ff7f0e;
       --primary-accent:#8fbcb9;
+
+      /* theme */
       --neutral-bg:#f4f7f6;
       --neutral-text:#333;
+      --panel-bg:#fff;
+      --panel-shadow:0 2px 5px rgba(0,0,0,.1);
     }
+
     /* Dark‑mode overrides */
     @media (prefers-color-scheme: dark) {
-      :root {
-        --neutral-bg: #1e293b;   /* slate‑800 */
-        --neutral-text: #f1f5f9; /* slate‑100 */
+      :root{
+        --neutral-bg:#1e293b;      /* slate‑800 */
+        --neutral-text:#f1f5f9;    /* slate‑100 */
+        --panel-bg:#334155;        /* slate‑700 */
+        --panel-shadow:0 2px 5px rgba(0,0,0,.4);
 
-        /* optional: higher‑contrast bar colours */
-        --uk-color: #8dd9c9;
-        --us-color: #ff7366;
-        --hk-color: #7aa2ff;
-        --jp-color: #ffb454;
-        --primary-accent: #38bdf8;  /* cyan‑400 */
+        /* higher‑contrast bars */
+        --uk-color:#8dd9c9;
+        --us-color:#ff7366;
+        --hk-color:#7aa2ff;
+        --jp-color:#ffb454;
+        --primary-accent:#38bdf8;  /* cyan‑400 */
+      }
+
+      /* nicer scrollbar (WebKit / Chromium) */
+      ::-webkit-scrollbar-thumb{
+        background:#475569; border-radius:4px;
       }
     }
+
+    /* base layout */
     *{margin:0;padding:0;box-sizing:border-box}
     body{
       font-family:'Open Sans',sans-serif;
@@ -50,9 +65,13 @@
     header{text-align:center;margin-bottom:20px}
     header h1{color:var(--uk-color);margin-bottom:5px;font-size:1.8rem}
     .time-display{font-size:1.5rem;font-weight:600;margin-top:5px}
+
+    /* chart “card” */
     .chart-container{
-      max-width:800px;margin:40px auto;background:#fff;padding:20px;
-      border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,.1);
+      max-width:800px;margin:40px auto;
+      background:var(--panel-bg);
+      padding:20px;border-radius:8px;
+      box-shadow:var(--panel-shadow);
     }
     canvas{width:100%!important;height:auto!important}
   </style>
@@ -70,124 +89,99 @@
   </section>
 
   <script>
-    /* 1. Market definitions (local hours + IANA TZ) */
+    /* 1 ▸ market definitions */
     const markets = [
-      { label:'London',    tz:'Europe/London',
-        sessions:[['08:00','16:30']],             colorVar:'--uk-color' },
-
-      { label:'New York',  tz:'America/New_York',
-        sessions:[['09:30','16:00']],             colorVar:'--us-color' },
-
-      { label:'Hong Kong', tz:'Asia/Hong_Kong',
-        sessions:[['09:30','12:00'],['13:00','16:00']], colorVar:'--hk-color' },
-
-      { label:'Tokyo',     tz:'Asia/Tokyo',
-        sessions:[['09:00','15:00']],             colorVar:'--jp-color' }
+      { label:'London',    tz:'Europe/London',   sessions:[['08:00','16:30']],                  colorVar:'--uk-color' },
+      { label:'New York',  tz:'America/New_York',sessions:[['09:30','16:00']],                  colorVar:'--us-color' },
+      { label:'Hong Kong', tz:'Asia/Hong_Kong',  sessions:[['09:30','12:00'],['13:00','16:00']],colorVar:'--hk-color' },
+      { label:'Tokyo',     tz:'Asia/Tokyo',      sessions:[['09:00','15:00']],                  colorVar:'--jp-color' }
     ];
 
-    /* 2. Day.js setup */
+    /* 2 ▸ Day.js */
     dayjs.extend(dayjs_plugin_utc);
     dayjs.extend(dayjs_plugin_timezone);
 
-    /* 3. Helper */
-    const css = name =>
-      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    /* 3 ▸ helpers */
+    const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    let rowInfo = [];   // per‑bar open/close for tooltips
 
-    /* 4. Bar‑series builder (returns bars + max session end) */
-    let rowInfo = [];
-
-    function computeSeries() {
+    function buildSeries(){
       const now = dayjs();
-      const opens  = [], durations = [], labels = [], colors = [];
-      let maxEnd = 0;
-      rowInfo = [];
+      const opens=[],lens=[],labels=[],colors=[];
+      let maxEnd=0; rowInfo=[];
 
-      markets.forEach(m => {
-        m.sessions.forEach((sess, i) => {
-          const [oStr, cStr] = sess;
-          const day = now.tz(m.tz).format('YYYY-MM-DD');
+      markets.forEach(m=>{
+        m.sessions.forEach((sess,i)=>{
+          const [os,cs]=sess;
+          const day=now.tz(m.tz).format('YYYY-MM-DD');
+          let oUTC=dayjs.tz(`${day} ${os}`,m.tz).utc();
+          let cUTC=dayjs.tz(`${day} ${cs}`,m.tz).utc();
+          if(cUTC.isBefore(oUTC)) cUTC=cUTC.add(1,'day');
 
-          let oUTC  = dayjs.tz(`${day} ${oStr}`, m.tz).utc();
-          let cUTC  = dayjs.tz(`${day} ${cStr}`, m.tz).utc();
-          if (cUTC.isBefore(oUTC)) cUTC = cUTC.add(1, 'day');
+          const o=oUTC.local(), c=cUTC.local();
+          let od=o.hour()+o.minute()/60;
+          let cd=c.hour()+c.minute()/60;
+          if(cd<=od) cd+=24;
 
-          const oLoc = oUTC.local(), cLoc = cUTC.local();
-
-          let oDec = oLoc.hour() + oLoc.minute()/60;
-          let cDec = cLoc.hour() + cLoc.minute()/60;
-          if (cDec <= oDec) cDec += 24;           // crosses midnight
-
-          opens.push(oDec);
-          durations.push(cDec - oDec);
-          labels.push(m.sessions.length === 1 ? m.label
-                                              : `${m.label} ${i ? 'PM' : 'AM'}`);
+          opens.push(od);
+          lens.push(cd-od);
+          labels.push(m.sessions.length===1?m.label:`${m.label} ${i?'PM':'AM'}`);
           colors.push(css(m.colorVar));
 
-          maxEnd = Math.max(maxEnd, cDec);
-          rowInfo.push({ openLocal: oLoc, closeLocal: cLoc });
+          rowInfo.push({openLocal:o,closeLocal:c});
+          maxEnd=Math.max(maxEnd,cd);
         });
       });
-
-      return { opens, durations, labels, colors, maxEnd };
+      return {opens,lens,labels,colors,maxEnd};
     }
 
-    /* 5. Vertical “now” line */
-    const timeLinePlugin = {
+    /* 4 ▸ timeline plugin */
+    const timeLinePlugin={
       id:'timeLine',
-      afterDraw: chart => {
-        const n = dayjs();
-        const h = n.hour() + n.minute()/60 + n.second()/3600;
-        const x = chart.scales.x.getPixelForValue(h);
-        const {top, bottom} = chart.scales.y;
-        const ctx = chart.ctx;
+      afterDraw:ch=>{
+        const n=dayjs(), h=n.hour()+n.minute()/60+n.second()/3600;
+        const x=ch.scales.x.getPixelForValue(h);
+        const {top,bottom}=ch.scales.y;
+        const ctx=ch.ctx;
         ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(x, top); ctx.lineTo(x, bottom);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = css('--primary-accent');
-        ctx.stroke();
-        ctx.restore();
+        ctx.beginPath(); ctx.moveTo(x,top); ctx.lineTo(x,bottom);
+        ctx.lineWidth=2; ctx.strokeStyle=css('--primary-accent');
+        ctx.stroke(); ctx.restore();
       }
     };
 
-    /* 6. Initialise chart */
-    const ctx = document.getElementById('marketChart').getContext('2d');
-    const first = computeSeries();
+    /* 5 ▸ init chart */
+    const ctx=document.getElementById('marketChart').getContext('2d');
+    const first=buildSeries();
+    const tickColor=css('--neutral-text');
 
-    const chart = new Chart(ctx, {
+    const chart=new Chart(ctx,{
       type:'bar',
       data:{
         labels:first.labels,
         datasets:[
-          { data:first.opens,     backgroundColor:'transparent', stack:'grp' },
-          { data:first.durations, backgroundColor:first.colors,
-            borderColor:first.colors, borderWidth:1, stack:'grp' }
+          {data:first.opens, backgroundColor:'transparent', stack:'grp'},
+          {data:first.lens,  backgroundColor:first.colors,
+           borderColor:first.colors, borderWidth:1, stack:'grp'}
         ]
       },
       options:{
         indexAxis:'y',
         scales:{
-          x:{ stacked:true, min:0,
-              max:Math.max(24, Math.ceil(first.maxEnd/2)*2),
-              ticks:{ stepSize:2, callback:v=>`${v%24}:00` } },
-          y:{ stacked:true }
+          x:{stacked:true,min:0,
+             max:Math.max(24,Math.ceil(first.maxEnd/2)*2),
+             ticks:{stepSize:2,callback:v=>`${v%24}:00`,color:tickColor}},
+          y:{stacked:true,ticks:{color:tickColor}}
         },
         plugins:{
-          legend:{ display:false },
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const { dataIndex: i } = ctx;
-                const now = dayjs();
-                const { openLocal:o, closeLocal:c } = rowInfo[i];
-
-                // ▸ 1  OPEN right now
-                if (now.isAfter(o) && now.isBefore(c)) {
-                  return 'Open for business';
-                }
-
-                // ▸ 2  NOT YET (open later today or tomorrow)
-                const mins = (now.isBefore(o) ? o : o.add(1,'day')).diff(now,'minute');
+          legend:{display:false},
+          tooltip:{
+            callbacks:{
+              label:({dataIndex:i})=>{
+                const now=dayjs();
+                const {openLocal:o,closeLocal:c}=rowInfo[i];
+                if(now.isAfter(o)&&now.isBefore(c)) return 'Open for business';
+                const mins=(now.isBefore(o)?o:o.add(1,'day')).diff(now,'minute');
                 return `Opens in ${Math.floor(mins/60)}h ${mins%60}m`;
               }
             }
@@ -197,32 +191,36 @@
       plugins:[timeLinePlugin]
     });
 
-    /* 7. Clock + live refresh */
+    /* 6 ▸ live clock + refresh */
     function updateClock(){
-      const now = new Date();
-      const opt ={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
-      document.getElementById('local-time').textContent = now.toLocaleTimeString([],opt);
+      const now=new Date();
+      const opt={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
+      document.getElementById('local-time').textContent=now.toLocaleTimeString([],opt);
     }
 
     function tick(){
       updateClock();
 
-      const { opens, durations, labels, colors, maxEnd } = computeSeries();
-      const now  = dayjs();
-      const curH = now.hour() + now.minute()/60;
-      const neededMax = Math.max(24, Math.ceil(Math.max(maxEnd, curH)/2)*2);
+      /* series rebuild */
+      const {opens,lens,labels,colors,maxEnd}=buildSeries();
+      const now=dayjs(); const curH=now.hour()+now.minute()/60;
+      const needMax=Math.max(24,Math.ceil(Math.max(maxEnd,curH)/2)*2);
 
-      chart.data.labels                     = labels;
-      chart.data.datasets[0].data           = opens;
-      chart.data.datasets[1].data           = durations;
-      chart.data.datasets[1].backgroundColor= colors;
-      chart.data.datasets[1].borderColor    = colors;
-      chart.options.scales.x.max            = neededMax;
+      chart.data.labels=labels;
+      chart.data.datasets[0].data=opens;
+      chart.data.datasets[1].data=lens;
+      chart.data.datasets[1].backgroundColor=colors;
+      chart.data.datasets[1].borderColor=colors;
+      chart.options.scales.x.max=needMax;
+
+      /* refresh tick colours in case theme flipped */
+      const tc=css('--neutral-text');
+      chart.options.scales.x.ticks.color=tc;
+      chart.options.scales.y.ticks.color=tc;
 
       chart.update('none');
     }
-    tick();
-    setInterval(tick, 1000);
+    tick(); setInterval(tick,1000);
   </script>
 </body>
 </html>
