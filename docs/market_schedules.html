@@ -26,8 +26,9 @@
       padding: 20px;
     }
     header { text-align: center; margin-bottom: 20px; }
-    header h1 { color: var(--uk-color); margin-bottom: 10px; font-size: 1.8rem; }
-    .time-display { font-size: 1.5rem; font-weight: 600; }
+    header h1 { color: var(--uk-color); margin-bottom: 5px; font-size: 1.8rem; }
+    header small { color: var(--neutral-text); font-size: 0.9rem; }
+    .time-display { font-size: 1.5rem; font-weight: 600; margin-top: 5px; }
     .chart-container {
       max-width: 800px;
       margin: 40px auto;
@@ -41,7 +42,8 @@
 </head>
 <body>
   <header>
-    <h1>Global Market Hours<br><small>(Mon–Fri, non-holiday)</small></h1>
+    <h1>Global Market Hours</h1>
+    <small>(Mon–Fri, non-holiday)</small>
     <div id="local-time" class="time-display">--:-- --</div>
   </header>
   <section class="chart-container">
@@ -58,10 +60,7 @@
     function updateLocalTime() {
       const now = new Date();
       const options = {
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit',
-        timeZoneName: 'short'
+        hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short'
       };
       document.getElementById('local-time').textContent = now.toLocaleTimeString([], options);
     }
@@ -99,21 +98,21 @@
         ctx.lineTo(x, bottom);
         ctx.lineWidth = 2;
         ctx.strokeStyle = getCssVar('--primary-accent');
-        ctx.stroke();
-        ctx.restore();
+        ctx.stroke(); ctx.restore();
       }
     };
 
+    // Initialize chart
     const ctx = document.getElementById('marketChart').getContext('2d');
-    const initial = computeSeries();
+    const { opens, durations } = computeSeries();
     const colors = markets.map(m => getCssVar(m.colorVar));
     const chart = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: markets.map(m => m.label),
         datasets: [
-          { data: initial.opens, backgroundColor: 'transparent', stack: 'grp' },
-          { data: initial.durations, backgroundColor: colors, borderColor: colors, borderWidth: 1, stack: 'grp' }
+          { data: opens, backgroundColor: 'transparent', stack: 'grp' },
+          { data: durations, backgroundColor: colors, borderColor: colors, borderWidth: 1, stack: 'grp' }
         ]
       },
       options: {
@@ -126,14 +125,15 @@
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: function(context) {
+              label: context => {
                 const idx = context.dataIndex;
                 const now = new Date();
-                const opens = context.chart.data.datasets[0].data;
-                const openHour = opens[idx];
+                const openHour = chart.data.datasets[0].data[idx];
                 const startH = Math.floor(openHour);
                 const startM = Math.round((openHour - startH) * 60);
-                let openLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM, 0, 0);
+                let openLocal = new Date(
+                  now.getFullYear(), now.getMonth(), now.getDate(), startH, startM, 0, 0
+                );
                 if (openLocal < now) openLocal.setDate(openLocal.getDate() + 1);
                 const diff = openLocal - now;
                 const hrs = Math.floor(diff / 3600000);
@@ -147,15 +147,14 @@
       plugins: [timeLinePlugin]
     });
 
-    function refresh() {
+    // Live updates every second
+    function tick() {
       updateLocalTime();
-      const { opens, durations } = computeSeries();
-      chart.data.datasets[0].data = opens;
-      chart.data.datasets[1].data = durations;
       chart.update('none');
     }
-    updateLocalTime();
-    setInterval(refresh, 60000);
+    // initial call
+    tick();
+    setInterval(tick, 1000);
   </script>
 </body>
 </html>
