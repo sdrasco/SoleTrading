@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Global Market Hours Dashboard</title>
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --uk-color: #6b9080;
+      --eu-color: #8fbcb9;
+      --us-color: #c94c4c;
+      --hk-color: #4c72b0;
+      --primary-accent: #8fbcb9;
+      --neutral-bg: #f4f7f6;
+      --neutral-text: #333;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Open Sans', sans-serif;
+      background: var(--neutral-bg);
+      color: var(--neutral-text);
+      padding: 20px;
+    }
+    header { text-align: center; margin-bottom: 20px; }
+    header h1 { color: var(--uk-color); margin-bottom: 10px; font-size: 1.8rem; }
+    .time-display { font-size: 1.5rem; font-weight: 600; }
+    .chart-container {
+      max-width: 800px;
+      margin: 40px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    canvas { width: 100% !important; height: auto !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Global Market Hours<br><small>(Mon–Fri, non-holiday)</small></h1>
+    <div id="local-time" class="time-display">--:-- --</div>
+  </header>
+  <section class="chart-container">
+    <canvas id="marketChart"></canvas>
+  </section>
+  <script>
+    const markets = [
+      { label: 'UK', open: 8, close: 16, colorVar: '--uk-color' },
+      { label: 'EU', open: 8, close: 16, colorVar: '--eu-color' },
+      { label: 'US', open: 14.5, close: 21, colorVar: '--us-color' },
+      { label: 'HK', open: 1, close: 8, colorVar: '--hk-color' }
+    ];
+
+    function updateLocalTime() {
+      const now = new Date();
+      const options = {
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZoneName: 'short'
+      };
+      document.getElementById('local-time').textContent = now.toLocaleTimeString([], options);
+    }
+
+    function computeSeries() {
+      const now = new Date();
+      const y = now.getFullYear(), M = now.getMonth(), d = now.getDate();
+      const opens = [], durations = [];
+      markets.forEach(m => {
+        const oUtc = new Date(Date.UTC(y, M, d, Math.floor(m.open), (m.open % 1) * 60));
+        const cUtc = new Date(Date.UTC(y, M, d, Math.floor(m.close), (m.close % 1) * 60));
+        const oLoc = oUtc.getHours() + oUtc.getMinutes() / 60;
+        let len = (cUtc.getHours() + cUtc.getMinutes() / 60) - oLoc;
+        if (len < 0) len += 24;
+        opens.push(oLoc);
+        durations.push(len);
+      });
+      return { opens, durations };
+    }
+
+    function getCssVar(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    const timeLinePlugin = {
+      id: 'timeLine',
+      afterDraw: chart => {
+        const now = new Date();
+        const hours = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+        const x = chart.scales.x.getPixelForValue(hours);
+        const { top, bottom } = chart.scales.y;
+        const ctx = chart.ctx;
+        ctx.save(); ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = getCssVar('--primary-accent');
+        ctx.stroke();
+        ctx.restore();
+      }
+    };
+
+    const ctx = document.getElementById('marketChart').getContext('2d');
+    const initial = computeSeries();
+    const colors = markets.map(m => getCssVar(m.colorVar));
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: markets.map(m => m.label),
+        datasets: [
+          { data: initial.opens, backgroundColor: 'transparent', stack: 'grp' },
+          { data: initial.durations, backgroundColor: colors, borderColor: colors, borderWidth: 1, stack: 'grp' }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        scales: {
+          x: { stacked: true, min: 0, max: 24, ticks: { stepSize: 2, callback: v => `${v}:00` } },
+          y: { stacked: true }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const idx = context.dataIndex;
+                const now = new Date();
+                const opens = context.chart.data.datasets[0].data;
+                const openHour = opens[idx];
+                const startH = Math.floor(openHour);
+                const startM = Math.round((openHour - startH) * 60);
+                let openLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM, 0, 0);
+                if (openLocal < now) openLocal.setDate(openLocal.getDate() + 1);
+                const diff = openLocal - now;
+                const hrs = Math.floor(diff / 3600000);
+                const mins = Math.round((diff % 3600000) / 60000);
+                return `Opening in ${hrs}h ${mins}m`;
+              }
+            }
+          }
+        }
+      },
+      plugins: [timeLinePlugin]
+    });
+
+    function refresh() {
+      updateLocalTime();
+      const { opens, durations } = computeSeries();
+      chart.data.datasets[0].data = opens;
+      chart.data.datasets[1].data = durations;
+      chart.update('none');
+    }
+    updateLocalTime();
+    setInterval(refresh, 60000);
+  </script>
+</body>
+</html>
