@@ -55,11 +55,12 @@
     /* scrolling wrapper – stops the canvas being squished */
     .chart-scroll{overflow-x:auto;}
 
-    /* fixed height so Chart.js renders on mobile */
+    /* give the canvas a built‑in ratio instead of a fixed height */
     .chart-scroll canvas{
       min-width:600px;
       width:100%!important;
-      height:320px;                 /* <‑‑ NEW */
+      aspect-ratio:5/3;           /* NEW  – preserves shape */
+      height:auto!important;      /* let browser compute */
     }
 
     /* ---------- Phone tweaks ---------- */
@@ -69,10 +70,9 @@
       .time-display{font-size:1.2rem}
       .chart-container{padding:12px;margin:24px auto;}
 
-      /* canvas: a bit taller, narrower min‑width for easier scrolling */
       .chart-scroll canvas{
-        min-width:500px;
-        height:380px;               /* <‑‑ taller on portrait phones */
+        min-width:500px;          /* still scrollable */
+        aspect-ratio:5/3;         /* same ratio, taller as width grows */
       }
     }
   </style>
@@ -91,8 +91,8 @@
     </div>
   </section>
 
-  <!-- JS (unchanged) -->
   <script>
+    /* 1  markets (unchanged) */
     const markets=[{label:'London',tz:'Europe/London',sessions:[['08:00','16:30']],colorVar:'--uk-color'},
       {label:'New York',tz:'America/New_York',sessions:[['09:30','16:00']],colorVar:'--us-color'},
       {label:'Hong Kong',tz:'Asia/Hong_Kong',sessions:[['09:30','12:00'],['13:00','16:00']],colorVar:'--hk-color'},
@@ -139,7 +139,7 @@
           {data:first.opens,backgroundColor:'transparent',stack:'grp'},
           {data:first.lens,backgroundColor:first.colors,borderColor:first.colors,borderWidth:1,
             borderRadius:6,borderSkipped:false,stack:'grp'}]},
-      options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      options:{responsive:true,maintainAspectRatio:true,indexAxis:'y',   /* ← back to true */
         scales:{
           x:{stacked:true,min:0,max:Math.max(24,Math.ceil(first.maxEnd/2)*2),
              ticks:{stepSize:2,callback:v=>`${v%24}:00`,color:tickColor}},
