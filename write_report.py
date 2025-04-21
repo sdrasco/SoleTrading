@@ -739,7 +739,7 @@ if __name__ == '__main__':
         "Open_Positions": open_positions_html,
         "Individual_Trades": individual_trades_html_pro,
         # Footer
-        "System_Name": "Sdrike Systems"
+        "System_Name": "Sdrike"
     }
 
     # ------------------------------------------------------------------
