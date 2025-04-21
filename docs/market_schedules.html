@@ -1,154 +1,212 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Global Market Hours Dashboard</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Global Market Hours Dashboard</title>
+
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+
   <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+  <!-- Day.js + plugins (UTC & timezone) -->
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/timezone.js"></script>
+
   <style>
-    :root {
-      --uk-color: #6b9080;
-      --eu-color: #8fbcb9;
-      --us-color: #c94c4c;
-      --hk-color: #4c72b0;
-      --jp-color: #ff7f0e;
-      --primary-accent: #8fbcb9;
-      --neutral-bg: #f4f7f6;
-      --neutral-text: #333;
+    :root{
+      --uk-color:#6b9080;
+      --us-color:#c94c4c;
+      --hk-color:#4c72b0;
+      --jp-color:#ff7f0e;
+      --primary-accent:#8fbcb9;
+      --neutral-bg:#f4f7f6;
+      --neutral-text:#333;
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Open Sans', sans-serif;
-      background: var(--neutral-bg);
-      color: var(--neutral-text);
-      padding: 20px;
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{
+      font-family:'Open Sans',sans-serif;
+      background:var(--neutral-bg);
+      color:var(--neutral-text);
+      padding:20px;
     }
-    header { text-align: center; margin-bottom: 20px; }
-    header h1 { color: var(--uk-color); margin-bottom: 5px; font-size: 1.8rem; }
-    header small { color: var(--neutral-text); font-size: 0.9rem; }
-    .time-display { font-size: 1.5rem; font-weight: 600; margin-top: 5px; }
-    .chart-container {
-      max-width: 800px;
-      margin: 40px auto;
-      background: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    header{text-align:center;margin-bottom:20px}
+    header h1{color:var(--uk-color);margin-bottom:5px;font-size:1.8rem}
+    .time-display{font-size:1.5rem;font-weight:600;margin-top:5px}
+    .chart-container{
+      max-width:800px;margin:40px auto;background:#fff;padding:20px;
+      border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,.1);
     }
-    canvas { width: 100% !important; height: auto !important; }
+    canvas{width:100%!important;height:auto!important}
   </style>
 </head>
+
 <body>
   <header>
     <h1>Global Market Hours</h1>
-    <small>(Mon–Fri, non-holiday)</small>
+    <small>(Mon–Fri, non‑holiday)</small>
     <div id="local-time" class="time-display">--:-- --</div>
   </header>
+
   <section class="chart-container">
     <canvas id="marketChart"></canvas>
   </section>
+
   <script>
+    /* 1. Market definitions (local hours + IANA TZ) */
     const markets = [
-      { label: 'UK/EU', open: 8, close: 16, colorVar: '--uk-color' },
-      { label: 'US', open: 14.5, close: 21, colorVar: '--us-color' },
-      { label: 'HK', open: 1, close: 8, colorVar: '--hk-color' },
-      { label: 'JP', open: 0, close: 6, colorVar: '--jp-color' }
+      { label:'London',    tz:'Europe/London',
+        sessions:[['08:00','16:30']],             colorVar:'--uk-color' },
+
+      { label:'New York',  tz:'America/New_York',
+        sessions:[['09:30','16:00']],             colorVar:'--us-color' },
+
+      { label:'Hong Kong', tz:'Asia/Hong_Kong',
+        sessions:[['09:30','12:00'],['13:00','16:00']], colorVar:'--hk-color' },
+
+      { label:'Tokyo',     tz:'Asia/Tokyo',
+        sessions:[['09:00','15:00']],             colorVar:'--jp-color' }
     ];
 
-    function updateLocalTime() {
-      const now = new Date();
-      const options = { hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short' };
-      document.getElementById('local-time').textContent = now.toLocaleTimeString([], options);
-    }
+    /* 2. Day.js setup */
+    dayjs.extend(dayjs_plugin_utc);
+    dayjs.extend(dayjs_plugin_timezone);
+
+    /* 3. Helper */
+    const css = name =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    /* 4. Bar‑series builder (returns bars + max session end) */
+    let rowInfo = [];
 
     function computeSeries() {
-      const now = new Date();
-      const y = now.getFullYear(), M = now.getMonth(), d = now.getDate();
-      const opens = [], durations = [];
+      const now = dayjs();
+      const opens  = [], durations = [], labels = [], colors = [];
+      let maxEnd = 0;
+      rowInfo = [];
+
       markets.forEach(m => {
-        const oUtc = new Date(Date.UTC(y, M, d, Math.floor(m.open), (m.open % 1) * 60));
-        const cUtc = new Date(Date.UTC(y, M, d, Math.floor(m.close), (m.close % 1) * 60));
-        const oLoc = oUtc.getHours() + oUtc.getMinutes() / 60;
-        let len = (cUtc.getHours() + cUtc.getMinutes() / 60) - oLoc;
-        if (len < 0) len += 24;
-        opens.push(oLoc);
-        durations.push(len);
+        m.sessions.forEach((sess, i) => {
+          const [oStr, cStr] = sess;
+          const day = now.tz(m.tz).format('YYYY-MM-DD');
+
+          let oUTC  = dayjs.tz(`${day} ${oStr}`, m.tz).utc();
+          let cUTC  = dayjs.tz(`${day} ${cStr}`, m.tz).utc();
+          if (cUTC.isBefore(oUTC)) cUTC = cUTC.add(1, 'day');
+
+          const oLoc = oUTC.local(), cLoc = cUTC.local();
+
+          let oDec = oLoc.hour() + oLoc.minute()/60;
+          let cDec = cLoc.hour() + cLoc.minute()/60;
+          if (cDec <= oDec) cDec += 24;           // crosses midnight
+
+          opens.push(oDec);
+          durations.push(cDec - oDec);
+          labels.push(m.sessions.length === 1 ? m.label
+                                              : `${m.label} ${i ? 'PM' : 'AM'}`);
+          colors.push(css(m.colorVar));
+
+          maxEnd = Math.max(maxEnd, cDec);
+          rowInfo.push({ openLocal: oLoc, closeLocal: cLoc });
+        });
       });
-      return { opens, durations };
+
+      return { opens, durations, labels, colors, maxEnd };
     }
 
-    function getCssVar(name) {
-      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    }
-
+    /* 5. Vertical “now” line */
     const timeLinePlugin = {
-      id: 'timeLine',
+      id:'timeLine',
       afterDraw: chart => {
-        const now = new Date();
-        const hours = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
-        const x = chart.scales.x.getPixelForValue(hours);
-        const { top, bottom } = chart.scales.y;
+        const n = dayjs();
+        const h = n.hour() + n.minute()/60 + n.second()/3600;
+        const x = chart.scales.x.getPixelForValue(h);
+        const {top, bottom} = chart.scales.y;
         const ctx = chart.ctx;
-        ctx.save(); ctx.beginPath();
-        ctx.moveTo(x, top);
-        ctx.lineTo(x, bottom);
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, top); ctx.lineTo(x, bottom);
         ctx.lineWidth = 2;
-        ctx.strokeStyle = getCssVar('--primary-accent');
-        ctx.stroke(); ctx.restore();
+        ctx.strokeStyle = css('--primary-accent');
+        ctx.stroke();
+        ctx.restore();
       }
     };
 
-    // Initialize chart
+    /* 6. Initialise chart */
     const ctx = document.getElementById('marketChart').getContext('2d');
-    const { opens, durations } = computeSeries();
-    const colors = markets.map(m => getCssVar(m.colorVar));
+    const first = computeSeries();
+
     const chart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: markets.map(m => m.label),
-        datasets: [
-          { data: opens, backgroundColor: 'transparent', stack: 'grp' },
-          { data: durations, backgroundColor: colors, borderColor: colors, borderWidth: 1, stack: 'grp' }
+      type:'bar',
+      data:{
+        labels:first.labels,
+        datasets:[
+          { data:first.opens,     backgroundColor:'transparent', stack:'grp' },
+          { data:first.durations, backgroundColor:first.colors,
+            borderColor:first.colors, borderWidth:1, stack:'grp' }
         ]
       },
-      options: {
-        indexAxis: 'y',
-        scales: {
-          x: { stacked: true, min: 0, max: 24, ticks: { stepSize: 2, callback: v => `${v}:00` } },
-          y: { stacked: true }
+      options:{
+        indexAxis:'y',
+        scales:{
+          x:{ stacked:true, min:0,
+              max:Math.max(24, Math.ceil(first.maxEnd/2)*2),
+              ticks:{ stepSize:2, callback:v=>`${v%24}:00` } },
+          y:{ stacked:true }
         },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: context => {
-                const idx = context.dataIndex;
-                const now = new Date();
-                const openHour = chart.data.datasets[0].data[idx];
-                const startH = Math.floor(openHour);
-                const startM = Math.round((openHour - startH) * 60);
-                let openLocal = new Date(
-                  now.getFullYear(), now.getMonth(), now.getDate(), startH, startM, 0, 0
-                );
-                if (openLocal < now) openLocal.setDate(openLocal.getDate() + 1);
-                const diff = openLocal - now;
-                const hrs = Math.floor(diff / 3600000);
-                const mins = Math.round((diff % 3600000) / 60000);
-                return `Opening in ${hrs}h ${mins}m`;
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            callbacks:{
+              label: ctx => {
+                const { dataIndex: i } = ctx;
+                const now = dayjs();
+                const { openLocal:o, closeLocal:c } = rowInfo[i];
+
+                if (now.isBefore(o)) {
+                  const m = o.diff(now, 'minute');
+                  return `Opens in ${Math.floor(m/60)}h ${m%60}m`;
+                }
+                if (now.isBefore(c)) {
+                  const m = c.diff(now, 'minute');
+                  return `Open, closes in ${Math.floor(m/60)}h ${m%60}m`;
+                }
+                const m = o.add(1,'day').diff(now,'minute');
+                return `Opens in ${Math.floor(m/60)}h ${m%60}m`;
               }
             }
           }
         }
       },
-      plugins: [timeLinePlugin]
+      plugins:[timeLinePlugin]
     });
 
-    // Live updates every second
-    function tick() {
-      updateLocalTime();
+    /* 7. Clock + live refresh */
+    function updateClock(){
+      const now = new Date();
+      const opt ={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
+      document.getElementById('local-time').textContent = now.toLocaleTimeString([],opt);
+    }
+
+    function tick(){
+      updateClock();
+
+      const { opens, durations, labels, colors, maxEnd } = computeSeries();
+      const now  = dayjs();
+      const curH = now.hour() + now.minute()/60;
+      const neededMax = Math.max(24, Math.ceil(Math.max(maxEnd, curH)/2)*2);
+
+      chart.data.labels                     = labels;
+      chart.data.datasets[0].data           = opens;
+      chart.data.datasets[1].data           = durations;
+      chart.data.datasets[1].backgroundColor= colors;
+      chart.data.datasets[1].borderColor    = colors;
+      chart.options.scales.x.max            = neededMax;
+
       chart.update('none');
     }
     tick();
