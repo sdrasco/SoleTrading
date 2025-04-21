@@ -18,61 +18,26 @@
 
   <style>
     :root{
-      /* bar colours */
-      --uk-color:#6b9080;
-      --us-color:#c94c4c;
-      --hk-color:#4c72b0;
-      --jp-color:#ff7f0e;
+      --uk-color:#6b9080; --us-color:#c94c4c; --hk-color:#4c72b0; --jp-color:#ff7f0e;
       --primary-accent:#8fbcb9;
-
-      /* theme */
-      --neutral-bg:#f4f7f6;
-      --neutral-text:#333;
-      --panel-bg:#fff;
-      --panel-shadow:0 2px 5px rgba(0,0,0,.1);
+      --neutral-bg:#f4f7f6; --neutral-text:#333;
+      --panel-bg:#fff;     --panel-shadow:0 2px 5px rgba(0,0,0,.1);
     }
-
-    /* Dark‑mode overrides */
-    @media (prefers-color-scheme: dark) {
+    @media (prefers-color-scheme: dark){
       :root{
-        --neutral-bg:#1e293b;      /* slate‑800 */
-        --neutral-text:#f1f5f9;    /* slate‑100 */
-        --panel-bg:#334155;        /* slate‑700 */
-        --panel-shadow:0 2px 5px rgba(0,0,0,.4);
-
-        /* higher‑contrast bars */
-        --uk-color:#8dd9c9;
-        --us-color:#ff7366;
-        --hk-color:#7aa2ff;
-        --jp-color:#ffb454;
-        --primary-accent:#38bdf8;  /* cyan‑400 */
+        --neutral-bg:#1e293b; --neutral-text:#f1f5f9;
+        --panel-bg:#334155;   --panel-shadow:0 2px 5px rgba(0,0,0,.4);
+        --uk-color:#8dd9c9; --us-color:#ff7366; --hk-color:#7aa2ff; --jp-color:#ffb454;
+        --primary-accent:#38bdf8;
       }
-
-      /* nicer scrollbar (WebKit / Chromium) */
-      ::-webkit-scrollbar-thumb{
-        background:#475569; border-radius:4px;
-      }
+      ::-webkit-scrollbar-thumb{background:#475569;border-radius:4px}
     }
-
-    /* base layout */
     *{margin:0;padding:0;box-sizing:border-box}
-    body{
-      font-family:'Open Sans',sans-serif;
-      background:var(--neutral-bg);
-      color:var(--neutral-text);
-      padding:20px;
-    }
+    body{font-family:'Open Sans',sans-serif;background:var(--neutral-bg);color:var(--neutral-text);padding:20px}
     header{text-align:center;margin-bottom:20px}
     header h1{color:var(--uk-color);margin-bottom:5px;font-size:1.8rem}
     .time-display{font-size:1.5rem;font-weight:600;margin-top:5px}
-
-    /* chart “card” */
-    .chart-container{
-      max-width:800px;margin:40px auto;
-      background:var(--panel-bg);
-      padding:20px;border-radius:8px;
-      box-shadow:var(--panel-shadow);
-    }
+    .chart-container{max-width:800px;margin:40px auto;background:var(--panel-bg);padding:20px;border-radius:8px;box-shadow:var(--panel-shadow)}
     canvas{width:100%!important;height:auto!important}
   </style>
 </head>
@@ -89,126 +54,89 @@
   </section>
 
   <script>
-    /* 1 ▸ market definitions */
-    const markets = [
-      { label:'London',    tz:'Europe/London',   sessions:[['08:00','16:30']],                  colorVar:'--uk-color' },
-      { label:'New York',  tz:'America/New_York',sessions:[['09:30','16:00']],                  colorVar:'--us-color' },
-      { label:'Hong Kong', tz:'Asia/Hong_Kong',  sessions:[['09:30','12:00'],['13:00','16:00']],colorVar:'--hk-color' },
-      { label:'Tokyo',     tz:'Asia/Tokyo',      sessions:[['09:00','15:00']],                  colorVar:'--jp-color' }
+    /* 1  markets */
+    const markets=[
+      {label:'London',tz:'Europe/London',sessions:[['08:00','16:30']],colorVar:'--uk-color'},
+      {label:'New York',tz:'America/New_York',sessions:[['09:30','16:00']],colorVar:'--us-color'},
+      {label:'Hong Kong',tz:'Asia/Hong_Kong',sessions:[['09:30','12:00'],['13:00','16:00']],colorVar:'--hk-color'},
+      {label:'Tokyo',tz:'Asia/Tokyo',sessions:[['09:00','15:00']],colorVar:'--jp-color'}
     ];
 
-    /* 2 ▸ Day.js */
-    dayjs.extend(dayjs_plugin_utc);
-    dayjs.extend(dayjs_plugin_timezone);
+    /* 2  Day.js */
+    dayjs.extend(dayjs_plugin_utc); dayjs.extend(dayjs_plugin_timezone);
 
-    /* 3 ▸ helpers */
+    /* 3  helpers */
     const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-    let rowInfo = [];   // per‑bar open/close for tooltips
+    let rowInfo=[];
 
     function buildSeries(){
-      const now = dayjs();
-      const opens=[],lens=[],labels=[],colors=[];
-      let maxEnd=0; rowInfo=[];
-
-      markets.forEach(m=>{
-        m.sessions.forEach((sess,i)=>{
-          const [os,cs]=sess;
-          const day=now.tz(m.tz).format('YYYY-MM-DD');
-          let oUTC=dayjs.tz(`${day} ${os}`,m.tz).utc();
-          let cUTC=dayjs.tz(`${day} ${cs}`,m.tz).utc();
-          if(cUTC.isBefore(oUTC)) cUTC=cUTC.add(1,'day');
-
-          const o=oUTC.local(), c=cUTC.local();
-          let od=o.hour()+o.minute()/60;
-          let cd=c.hour()+c.minute()/60;
-          if(cd<=od) cd+=24;
-
-          opens.push(od);
-          lens.push(cd-od);
-          labels.push(m.sessions.length===1?m.label:`${m.label} ${i?'PM':'AM'}`);
-          colors.push(css(m.colorVar));
-
-          rowInfo.push({openLocal:o,closeLocal:c});
-          maxEnd=Math.max(maxEnd,cd);
-        });
-      });
-      return {opens,lens,labels,colors,maxEnd};
+      const now=dayjs(); const O=[],L=[],Lab=[],Col=[]; let maxEnd=0; rowInfo=[];
+      markets.forEach(m=>m.sessions.forEach((s,i)=>{
+        const [os,cs]=s, day=now.tz(m.tz).format('YYYY-MM-DD');
+        let ou=dayjs.tz(`${day} ${os}`,m.tz).utc(), cu=dayjs.tz(`${day} ${cs}`,m.tz).utc();
+        if(cu.isBefore(ou)) cu=cu.add(1,'day');
+        const ol=ou.local(), cl=cu.local();
+        let od=ol.hour()+ol.minute()/60, cd=cl.hour()+cl.minute()/60;
+        if(cd<=od) cd+=24;
+        O.push(od); L.push(cd-od); Lab.push(m.sessions.length===1?m.label:`${m.label} ${i?'PM':'AM'}`);
+        Col.push(css(m.colorVar)); rowInfo.push({openLocal:ol,closeLocal:cl}); maxEnd=Math.max(maxEnd,cd);
+      }));
+      return{opens:O,lens:L,labels:Lab,colors:Col,maxEnd};
     }
 
-    /* 4 ▸ timeline plugin */
+    /* 4  timeline of ultra‑dense, slow‑pulsing dots */
     const timeLinePlugin={
       id:'timeLine',
       afterDraw:ch=>{
         const n=dayjs(), h=n.hour()+n.minute()/60+n.second()/3600;
-        const x=ch.scales.x.getPixelForValue(h);
-        const {top,bottom}=ch.scales.y;
-        const ctx=ch.ctx;
+        const x=ch.scales.x.getPixelForValue(h), {top,bottom}=ch.scales.y, ctx=ch.ctx;
+        const accent=css('--primary-accent');
+        const dotGap=3, baseR=1.5;                    // dense & slim
         ctx.save();
-        ctx.beginPath(); ctx.moveTo(x,top); ctx.lineTo(x,bottom);
-        ctx.lineWidth=2; ctx.strokeStyle=css('--primary-accent');
-        ctx.stroke(); ctx.restore();
+        for(let y=top; y<=bottom; y+=dotGap){
+          const phase=(Date.now()/1600 + y*0.05)%Math.PI; // slower (1600 ms)
+          const r=baseR + Math.sin(phase)*0.8;           // gentle ±0.8 px
+          ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI);
+          ctx.fillStyle=accent; ctx.fill();
+        }
+        ctx.restore();
       }
     };
 
-    /* 5 ▸ init chart */
+    /* 5  chart */
     const ctx=document.getElementById('marketChart').getContext('2d');
-    const first=buildSeries();
-    const tickColor=css('--neutral-text');
-
-    const chart=new Chart(ctx,{
-      type:'bar',
-      data:{
-        labels:first.labels,
+    const first=buildSeries(), tickColor=css('--neutral-text');
+    const chart=new Chart(ctx,{type:'bar',
+      data:{labels:first.labels,
         datasets:[
-          {data:first.opens, backgroundColor:'transparent', stack:'grp'},
-          {data:first.lens,  backgroundColor:first.colors,
-           borderColor:first.colors, borderWidth:1,
-           /* ROUNDED CORNERS ↓↓↓ */
-           borderRadius:6,   // px radius each corner
-           borderSkipped:false, // let radius show on every edge
-           stack:'grp'}
-        ]
-      },
-      options:{
-        indexAxis:'y',
+          {data:first.opens,backgroundColor:'transparent',stack:'grp'},
+          {data:first.lens,backgroundColor:first.colors,borderColor:first.colors,borderWidth:1,
+           borderRadius:6,borderSkipped:false,stack:'grp'}
+        ]},
+      options:{indexAxis:'y',
         scales:{
-          x:{stacked:true,min:0,
-             max:Math.max(24,Math.ceil(first.maxEnd/2)*2),
+          x:{stacked:true,min:0,max:Math.max(24,Math.ceil(first.maxEnd/2)*2),
              ticks:{stepSize:2,callback:v=>`${v%24}:00`,color:tickColor}},
-          y:{stacked:true,ticks:{color:tickColor}}
-        },
-        plugins:{
-          legend:{display:false},
-          tooltip:{
-            callbacks:{
-              label:({dataIndex:i})=>{
-                const now=dayjs();
-                const {openLocal:o,closeLocal:c}=rowInfo[i];
-                if(now.isAfter(o)&&now.isBefore(c)) return 'Open for business';
-                const mins=(now.isBefore(o)?o:o.add(1,'day')).diff(now,'minute');
-                return `Opens in ${Math.floor(mins/60)}h ${mins%60}m`;
-              }
-            }
-          }
-        }
+          y:{stacked:true,ticks:{color:tickColor}}},
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:({dataIndex:i})=>{
+            const now=dayjs(),{openLocal:o,closeLocal:c}=rowInfo[i];
+            if(now.isAfter(o)&&now.isBefore(c)) return'Open for business';
+            const m=(now.isBefore(o)?o:o.add(1,'day')).diff(now,'minute');
+            return`Opens in ${Math.floor(m/60)}h ${m%60}m`;}}}}
       },
-      plugins:[timeLinePlugin]
-    });
+      plugins:[timeLinePlugin]});
 
-    /* 6 ▸ live clock + refresh */
+    /* 6  clock + refresh */
     function updateClock(){
-      const now=new Date();
-      const opt={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
+      const now=new Date(), opt={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
       document.getElementById('local-time').textContent=now.toLocaleTimeString([],opt);
     }
-
     function tick(){
       updateClock();
-
-      /* series rebuild */
       const {opens,lens,labels,colors,maxEnd}=buildSeries();
-      const now=dayjs(); const curH=now.hour()+now.minute()/60;
-      const needMax=Math.max(24,Math.ceil(Math.max(maxEnd,curH)/2)*2);
+      const now=dayjs(), curH=now.hour()+now.minute()/60,
+            needMax=Math.max(24,Math.ceil(Math.max(maxEnd,curH)/2)*2);
 
       chart.data.labels=labels;
       chart.data.datasets[0].data=opens;
@@ -217,14 +145,12 @@
       chart.data.datasets[1].borderColor=colors;
       chart.options.scales.x.max=needMax;
 
-      /* refresh tick colours in case theme flipped */
       const tc=css('--neutral-text');
-      chart.options.scales.x.ticks.color=tc;
-      chart.options.scales.y.ticks.color=tc;
+      chart.options.scales.x.ticks.color=tc; chart.options.scales.y.ticks.color=tc;
 
       chart.update('none');
     }
-    tick(); setInterval(tick,1000);
+    tick(); setInterval(tick,400);   /* slower loop to match mellow pulse */
   </script>
 </body>
 </html>
