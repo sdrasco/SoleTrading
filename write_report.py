@@ -2,28 +2,25 @@ import pandas as pd
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+from matplotlib.colors import LinearSegmentedColormap, to_rgba
 import matplotlib.path as mpath
 import matplotlib.patches as mpatches
-import matplotlib.colors as mcolors
-from matplotlib.colors import LinearSegmentedColormap, to_rgba
 import io, base64
 import datetime
 from zoneinfo import ZoneInfo
 from jinja2 import Template
 from scipy.interpolate import make_interp_spline
 
-# ------------------------------
-# Helper Functions for Analysis
-# ------------------------------
+# ------------------------------------------------
+# 1) LOAD / PREP FUNCTIONS
+# ------------------------------------------------
 
 def load_trades(filename):
     """
-    Load the CSV and parse the relevant date columns.
-    Rename columns and derive additional columns for analysis.
+    Loads the 'trades.csv' (options or stocks).
     """
     df = pd.read_csv(filename, parse_dates=["OPEN DATE", "CLOSE DATE", "EXPIRATION"])
-    
+
     # If DAYS_HELD is not in the file, calculate it
     if "DAYS_HELD" not in df.columns:
         df["DAYS_HELD"] = (df["CLOSE DATE"] - df["OPEN DATE"]).dt.days
@@ -32,7 +29,10 @@ def load_trades(filename):
     df["DAY_OF_WEEK_AT_OPEN"] = df["OPEN DATE"].dt.day_name()
     df["DAY_OF_WEEK_AT_CLOSE"] = df["CLOSE DATE"].dt.day_name()
 
-    # Derive trade direction from OPTION TYPE
+    # Mark position = "OPT" if not otherwise specified
+    df["POSITION"] = df.get("POSITION", "OPT")
+
+    # If there's an OPTION TYPE column, create "TRADE DIRECTION" for calls/puts
     if "OPTION TYPE" in df.columns:
         df["OPTION TYPE"] = df["OPTION TYPE"].str.strip().str.upper()
         df["TRADE DIRECTION"] = df["OPTION TYPE"].map({
@@ -44,15 +44,44 @@ def load_trades(filename):
     
     return df
 
+
+def load_fx_trades(filename):
+    fx = pd.read_csv(filename, parse_dates=["OPEN_DATE", "CLOSE_DATE"])
+    if "NET_P_L_USD" not in fx.columns or fx.empty:
+        return pd.DataFrame()
+
+    fx.rename(
+        columns={
+            "OPEN_DATE":   "OPEN DATE",
+            "CLOSE_DATE":  "CLOSE DATE",
+            "NET_P_L_USD": "NET PROFIT",
+            "RETURN_PCT":  "RETURN"
+        },
+        inplace=True
+    )
+
+    fx["OPEN DATE"]  = pd.to_datetime(fx["OPEN DATE"],  errors="coerce")
+    fx["CLOSE DATE"] = pd.to_datetime(fx["CLOSE DATE"], errors="coerce")
+
+    # ADDED SNIPPET: unify "PAIR" into "SYMBOL"
+    if "PAIR" in fx.columns and "SYMBOL" not in fx.columns:
+        fx["SYMBOL"] = fx["PAIR"]
+
+    if "DAYS_HELD" not in fx.columns:
+        fx["DAYS_HELD"] = (fx["CLOSE DATE"] - fx["OPEN DATE"]).dt.days
+
+    fx["POSITION"] = "FX"
+    return fx
+
+
 def compute_adjusted_sortino_ratio(df, target_return=0):
-    """
-    Compute the 'Adjusted Sortino Ratio' which accounts for
-    skewness and kurtosis in the returns distribution.
-    """
-    returns = df["RETURN"]
+    if "RETURN" not in df.columns:
+        return np.nan
+    returns = df["RETURN"].dropna()
+    if returns.empty:
+        return np.nan
+
     mean_return = returns.mean()
-    
-    # Calculate downside deviation based on returns below the target
     downside_returns = returns[returns < target_return]
     if len(downside_returns) == 0:
         return np.nan
@@ -61,8 +90,6 @@ def compute_adjusted_sortino_ratio(df, target_return=0):
         return np.nan
 
     sortino_ratio = (mean_return - target_return) / downside_deviation
-    
-    # Adjust using skewness and kurtosis
     skewness = returns.skew()
     kurtosis = returns.kurtosis()
     adjusted_sortino = sortino_ratio * (
@@ -70,31 +97,54 @@ def compute_adjusted_sortino_ratio(df, target_return=0):
     )
     return adjusted_sortino
 
-def compute_kpis(df):
-    """
-    Compute overall KPIs such as net profit, average return,
-    Sharpe ratio, max drawdown, volatility, etc.
-    """
-    total_trades = len(df)
-    net_profit = df["NET PROFIT"].sum()
-    avg_trade_return = df["RETURN"].mean()
-    win_rate = (df["NET PROFIT"] > 0).mean() * 100
-    
-    std_return = df["RETURN"].std()
-    sharpe_ratio = (df["RETURN"].mean() / std_return) if std_return > 0 else np.nan
 
-    # Sort for equity curve (trade-by-trade cumulative net profit)
-    df_sorted = df.sort_values(by="CLOSE DATE").copy()
+def compute_kpis(df):
+    total_trades = len(df)
+    if "NET PROFIT" not in df.columns or df.empty:
+        return {
+            "total_trades": total_trades,
+            "net_profit": 0,
+            "avg_trade_return": 0,
+            "win_rate": 0,
+            "sharpe_ratio": np.nan,
+            "max_drawdown_pct": 0,
+            "volatility": 0,
+            "equity_curve": df,
+            "adjusted_sortino_ratio": np.nan
+        }
+    
+    net_profit = df["NET PROFIT"].sum()
+
+    if "RETURN" in df.columns:
+        avg_trade_return = df["RETURN"].mean()
+        std_return = df["RETURN"].std()
+        sharpe_ratio = (
+            df["RETURN"].mean() / std_return if std_return > 0 else np.nan
+        )
+    else:
+        avg_trade_return = 0
+        sharpe_ratio = np.nan
+    
+    win_rate = (df["NET PROFIT"] > 0).mean() * 100
+
+    # Sort for equity curve
+    if "CLOSE DATE" in df.columns:
+        df_sorted = df.sort_values("CLOSE DATE").copy()
+    else:
+        df_sorted = df.copy()
     df_sorted["CUMULATIVE_NET_PROFIT"] = df_sorted["NET PROFIT"].cumsum()
 
-    # Drawdown calculation
     cumulative = df_sorted["CUMULATIVE_NET_PROFIT"]
     running_max = cumulative.cummax()
     drawdown = (cumulative - running_max) / running_max.replace(0, np.nan)
     max_drawdown_pct = abs(drawdown.min() * 100)
 
-    volatility = std_return
-    adjusted_sortino_ratio = compute_adjusted_sortino_ratio(df)
+    if "RETURN" in df.columns:
+        volatility = df["RETURN"].std()
+        adjusted_sortino_ratio = compute_adjusted_sortino_ratio(df)
+    else:
+        volatility = 0
+        adjusted_sortino_ratio = np.nan
 
     return {
         "total_trades": total_trades,
@@ -104,15 +154,18 @@ def compute_kpis(df):
         "sharpe_ratio": sharpe_ratio,
         "max_drawdown_pct": max_drawdown_pct,
         "volatility": volatility,
-        "equity_curve": df_sorted,  # for further charts
+        "equity_curve": df_sorted,
         "adjusted_sortino_ratio": adjusted_sortino_ratio
     }
 
+
 def generate_weekly_summary(df):
-    """
-    Group trades by weekly close date and show aggregated performance metrics per week,
-    with improved aesthetics.
-    """
+    if df.empty or "CLOSE DATE" not in df.columns:
+        return pd.DataFrame()
+
+    if "RETURN" not in df.columns:
+        df["RETURN"] = 0.0
+
     df["WEEK"] = df["CLOSE DATE"].dt.to_period("W").apply(lambda r: r.start_time.date())
     
     weekly = df.groupby("WEEK").agg(
@@ -122,44 +175,54 @@ def generate_weekly_summary(df):
         avg_return=("RETURN", "mean"),
         winning_trades=("NET PROFIT", lambda x: (x > 0).sum())
     ).reset_index()
-    
+
     weekly["win_rate"] = (weekly["winning_trades"] / weekly["num_trades"]) * 100
-    
-    weekly.drop(columns=["avg_days_held", "winning_trades"], inplace=True)
+
+    weekly.drop(columns=["avg_days_held", "winning_trades"], inplace=True, errors="ignore")
+
+    def weekly_adjusted_sortino(sub):
+        return compute_adjusted_sortino_ratio(sub)
+
+    adj_sortino_series = df.groupby("WEEK", group_keys=False).apply(weekly_adjusted_sortino)
     
     weekly["sharpe_ratio"] = df.groupby("WEEK")["RETURN"].apply(
         lambda x: x.mean() / x.std() if x.std() > 0 else np.nan
     ).values
-    
-    weekly["adjusted_sortino_ratio"] = df.groupby("WEEK")["RETURN"].apply(
-        lambda x: compute_adjusted_sortino_ratio(pd.DataFrame({"RETURN": x}))
-    ).values
+    weekly["adjusted_sortino_ratio"] = adj_sortino_series.reindex(weekly["WEEK"]).values
 
     numeric_cols = weekly.select_dtypes(include=[np.number]).columns
     weekly[numeric_cols] = weekly[numeric_cols].round(2)
-    
+
     weekly["Adjusted Sortino"] = weekly["adjusted_sortino_ratio"].apply(
         lambda x: "inf" if np.isnan(x) else x
     )
-    
+
     weekly.insert(0, "Week", range(1, len(weekly) + 1))
     weekly.rename(columns={"WEEK": "Starts"}, inplace=True)
-    weekly.drop(columns=["adjusted_sortino_ratio"], inplace=True)
-    
+    if "adjusted_sortino_ratio" in weekly.columns:
+        weekly.drop(columns=["adjusted_sortino_ratio"], inplace=True)
+
     def format_date_cell(d):
-        return f'<span style="white-space: nowrap;" data-sort="{d.strftime("%Y-%m-%d")}">{d.day} {d.strftime("%b %Y")}</span>'
+        return (
+            f'<span style="white-space: nowrap;" data-sort="{d.strftime("%Y-%m-%d")}">'
+            f'{d.day} {d.strftime("%b %Y")}'
+            '</span>'
+        )
     weekly["Starts"] = weekly["Starts"].apply(format_date_cell)
-    
+
     def format_profit(x):
-        x = int(round(x))
+        try:
+            x = int(round(x))
+        except:
+            return str(x)
         if x < 0:
             return f"-${abs(x):,}"
         else:
             return f"${x:,}"
     weekly["net_profit"] = weekly["net_profit"].apply(format_profit)
-    
+
     weekly["win_rate"] = weekly["win_rate"].apply(lambda x: f"{round(x)}%")
-    
+
     rename_map = {
         "Starts": "Starting",
         "net_profit": "Profit",
@@ -170,42 +233,32 @@ def generate_weekly_summary(df):
         "Adjusted Sortino": "Sortino"
     }
     weekly.rename(columns=rename_map, inplace=True)
-    
+
     desired_order = ["Week", "Starting", "Profit", "Trades", "Win Rate", "Trade Return", "Sharpe", "Sortino"]
-    weekly = weekly[desired_order]
-    
-    header_tooltips = {
-        "Week": "Sequential week number.",
-        "Starting": "First trading day of the week.",
-        "Trades": "Number of trades that closed this week.",
-        "Profit": "Change in equity for the week.",
-        "Trade Return": "Average return for trades closed this week.",
-        "Win Rate": "Ratio of wins to trades for the week.",
-        "Sharpe": "Sharpe Ratio: A measure of risk-adjusted return.",
-        "Sortino": "Adjusted Sortino Ratio: Ignores volatility from gains."
-    }
-    new_headers = {col: f'<span title="{header_tooltips[col]}">{col}</span>' for col in weekly.columns}
-    weekly.rename(columns=new_headers, inplace=True)
-    
+    weekly = weekly[[c for c in desired_order if c in weekly.columns]]
+
     return weekly
 
+
 def generate_weekly_summary_html(df):
-    """
-    Generate the weekly summary as an HTML table.
-    """
     weekly = generate_weekly_summary(df)
     return weekly.to_html(escape=False, index=False, classes='sortable-table')
 
+
+# ------------------------------------------------
+# 2) VISUALIZATION FUNCTIONS
+# ------------------------------------------------
+
 def generate_equity_curve_plot(trades_df):
-    """
-    Generate a base64-encoded daily equity curve image
-    (plus daily trade volume on a secondary axis),
-    using #6BA368 for the main line and darker grey bars for volume.
-    """
+    if trades_df.empty or "CLOSE DATE" not in trades_df.columns:
+        return ""
     df = trades_df.copy()
     df['DATE'] = pd.to_datetime(df['CLOSE DATE'].dt.date)
     
     daily_profit = df.groupby('DATE')['NET PROFIT'].sum().sort_index()
+    if daily_profit.empty:
+        return ""
+    
     daily_volume = df.groupby('DATE').size().sort_index()
 
     start_date = daily_profit.index.min()
@@ -250,26 +303,24 @@ def generate_equity_curve_plot(trades_df):
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
+
 def generate_basic_equity_wide(trades_df):
-    """
-    Basic equity curve (wide version) with #6BA368 color.
-    """
     return _generate_basic_equity_custom(trades_df, fig_width=20, fig_height=6)
 
+
 def generate_basic_equity_square(trades_df):
-    """
-    Basic equity curve (square version) with #6BA368 color.
-    """
     return _generate_basic_equity_custom(trades_df, fig_width=8, fig_height=8)
 
+
 def _generate_basic_equity_custom(trades_df, fig_width, fig_height):
-    """
-    Internal helper that plots the line + gradient fill 
-    in #6BA368 (muted green).
-    """
+    if trades_df.empty or "CLOSE DATE" not in trades_df.columns:
+        return ""
     df = trades_df.copy()
     df['DATE'] = pd.to_datetime(df['CLOSE DATE'].dt.date)
     daily_profit = df.groupby('DATE')['NET PROFIT'].sum().sort_index()
+    if daily_profit.empty:
+        return ""
+    
     start_date = daily_profit.index.min()
     end_date = pd.to_datetime('today').normalize()
     all_dates = pd.date_range(start_date, end_date, freq='D')
@@ -278,6 +329,8 @@ def _generate_basic_equity_custom(trades_df, fig_width, fig_height):
 
     x_original = np.arange(len(cumulative_equity))
     y_original = cumulative_equity.values
+    if len(x_original) < 2:
+        return ""
 
     x_smooth = np.linspace(x_original.min(), x_original.max(), 300)
     spline = make_interp_spline(x_original, y_original, k=3)
@@ -346,13 +399,13 @@ def _generate_basic_equity_custom(trades_df, fig_width, fig_height):
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
+
 def generate_trade_return_histogram(df):
-    """
-    Generate a histogram of trade returns in #6BA368 (green).
-    """
+    if df.empty or "RETURN" not in df.columns:
+        return ""
     plt.figure(figsize=(10,6))
     plt.hist(
-        df["RETURN"], bins=20, edgecolor="black",
+        df["RETURN"].dropna(), bins=20, edgecolor="black",
         color="#6BA368"
     )
     plt.xlabel("Trade Return", fontsize=21)
@@ -365,49 +418,79 @@ def generate_trade_return_histogram(df):
     plt.close()
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
+
 def generate_win_rate_by_symbol_plot(df):
     """
     Generate a horizontal bar plot showing Win Rate by Symbol
     (green bars).
+    Includes both options and FX trades.
     """
+
+    # 1) Ensure we have one unified "SYMBOL" column, even for FX
+    #    Some FX rows might only have "PAIR" or "Ticker" instead.
+    #    So fill "SYMBOL" if it's missing.
+    if "SYMBOL" not in df.columns:
+        # If 'PAIR' exists, use that:
+        if "PAIR" in df.columns:
+            df["SYMBOL"] = df["PAIR"]
+        # Otherwise if 'Ticker' exists (some code uses Ticker for FX):
+        elif "Ticker" in df.columns:
+            df["SYMBOL"] = df["Ticker"]
+        else:
+            # If none of the above columns exist, there's nothing to plot
+            return ""
+
+    if df.empty or "SYMBOL" not in df.columns or "NET PROFIT" not in df.columns:
+        return ""
+
+    # 2) Group by "SYMBOL" to compute win rate
     summary = df.groupby('SYMBOL').agg(
         win_rate=('NET PROFIT', lambda x: (x > 0).mean() * 100),
         num_trades=('NET PROFIT', 'count')
     )
+    if summary.empty:
+        return ""
+
+    # 3) Sort descending by (win_rate, num_trades)
     summary = summary.sort_values(by=['win_rate', 'num_trades'], ascending=[True, False])[::-1]
+
+    # 4) Build label like "GBP.USD (10)" for each bar
     labels = [f"{sym} ({n})" for sym, n in zip(summary.index, summary['num_trades'])]
-    
+
+    # 5) Plot as horizontal bars
     num_bars = len(labels)
     bar_height = 0.6
     plt.figure(figsize=(8, max(3, 0.4 * num_bars)))
     plt.barh(
-        labels, summary['win_rate'], 
-        color="#6BA368", 
-        edgecolor='black', height=bar_height
+        labels, summary['win_rate'],
+        color="#6BA368",
+        edgecolor='black',
+        height=bar_height
     )
-    
     plt.ylabel('Symbol (Number of Trades)', fontsize=16)
     plt.xlabel('Win Rate (%)', fontsize=16)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
     plt.xlim(0, 100)
     plt.tight_layout()
+
+    # 6) Convert to base64 PNG
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight")
     plt.close()
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
+
 def generate_feature_plots(df, features):
-    """
-    Plots for numeric or categorical features, with
-    Wins in green (#6BA368) and Losses in darker grey (#777777).
-    """
     plots = {}
+    if "NET PROFIT" not in df.columns:
+        return plots
+
     df["WIN"] = (df["NET PROFIT"] > 0).astype(int)
     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-    win_color = "#6BA368"   # green
-    loss_color = "#777777"  # darker grey for better contrast
+    win_color = "#6BA368"
+    loss_color = "#777777"
 
     for feature in features:
         if feature not in df.columns:
@@ -415,7 +498,6 @@ def generate_feature_plots(df, features):
         plt.figure(figsize=(8, 6))
 
         if pd.api.types.is_numeric_dtype(df[feature]):
-            # Draw Losses first, then Wins so both remain visible
             df_loss = df[df["WIN"] == 0]
             df_win = df[df["WIN"] == 1]
             plt.hist(
@@ -433,7 +515,6 @@ def generate_feature_plots(df, features):
             plt.yticks(fontsize=12)
 
         else:
-            # Categorical stacked bar
             cat_counts = df.groupby([feature, "WIN"]).size().reset_index(name="count")
             pivot_df = cat_counts.pivot(index=feature, columns="WIN", values="count").fillna(0)
             for col in [0, 1]:
@@ -444,7 +525,6 @@ def generate_feature_plots(df, features):
             if feature in ["DAY_OF_WEEK_AT_OPEN", "DAY_OF_WEEK_AT_CLOSE"]:
                 pivot_df = pivot_df.reindex(weekday_order).dropna(how='all')
             if pivot_df.empty:
-                print(f"Skipping plot for '{feature}': No data available after sorting.")
                 plt.close()
                 continue
 
@@ -466,10 +546,8 @@ def generate_feature_plots(df, features):
 
     return plots
 
+
 def render_report(template_file, context, output_file="docs/report.html"):
-    """
-    Use Jinja2 to render the final HTML report from a template.
-    """
     with open(template_file, "r") as f:
         template_str = f.read()
     template = Template(template_str)
@@ -478,53 +556,54 @@ def render_report(template_file, context, output_file="docs/report.html"):
         f.write(report_html)
     print(f"Report written to {output_file}")
 
-# ------------------------------
-# Main Script
-# ------------------------------
+
+# ------------------------------------------------
+# 3) MAIN
+# ------------------------------------------------
+
 if __name__ == '__main__':
-    # 1) Load trades data and compute KPIs
-    trades_df = load_trades("data/cleaned/trades.csv")
-    kpis = compute_kpis(trades_df)
+    # A) Load data: Options + FX
+    option_trades_df = load_trades("data/cleaned/trades.csv")
 
-    # 2) Generate the weekly summary (advanced) as HTML
-    weekly_summary_html_pro = generate_weekly_summary_html(trades_df)
+    # ### CHANGED ###
+    # Now `fx_trades_df` is read from the matched trades in `data/cleaned/fx_trades.csv`.
+    # That file already includes a 'ROUND_TRIP' column from process_activity.py
+    fx_trades_df = load_fx_trades("data/cleaned/fx_trades.csv")
 
-    # 3) Generate charts for Pro (green theme + darker grey)
-    equity_curve_img_pro = generate_equity_curve_plot(trades_df)   
-    trade_hist_img = generate_trade_return_histogram(trades_df)
+    # Concatenate
+    combined_df = pd.concat([option_trades_df, fx_trades_df], ignore_index=True).sort_values("CLOSE DATE")
 
-    # Generate feature plots
+    # B) Compute overall KPIs
+    kpis = compute_kpis(combined_df)
+
+    # C) Weekly summary
+    weekly_summary_html_pro = generate_weekly_summary_html(combined_df)
+
+    # D) Charts
+    equity_curve_img_pro = generate_equity_curve_plot(combined_df)
+    trade_hist_img       = generate_trade_return_histogram(combined_df)
+
     candidate_features = [
         "DAYS_HELD", "DTE AT OPEN",
         "DAY_OF_WEEK_AT_OPEN", "DAY_OF_WEEK_AT_CLOSE",
         "TRADE DIRECTION"
     ]
-    candidate_features = [col for col in candidate_features if col in trades_df.columns]
-    feature_plots = generate_feature_plots(trades_df, candidate_features)
-    win_rate_by_symbol_img = generate_win_rate_by_symbol_plot(trades_df)
+    candidate_features = [col for col in candidate_features if col in combined_df.columns]
+    feature_plots = generate_feature_plots(combined_df, candidate_features)
+    win_rate_by_symbol_img = generate_win_rate_by_symbol_plot(combined_df)
 
-    # 4) Process unclosed positions
+    # E) Load and format unclosed option positions
     open_positions_df = pd.read_csv("data/cleaned/unclosed.csv")
-
-    # Remove the "ACCOUNT" column (case-sensitive check)
     if "ACCOUNT" in open_positions_df.columns:
         open_positions_df.drop(columns=["ACCOUNT"], inplace=True)
-
-    # Convert OPEN DATE and EXPIRATION to datetime
     open_positions_df["OPEN DATE"] = pd.to_datetime(open_positions_df["OPEN DATE"], errors="coerce")
     open_positions_df["Expiration"] = pd.to_datetime(open_positions_df["Expiration"], errors="coerce")
-
-    # Create DTE from (Expiration - today's date)
     open_positions_df["DTE"] = (open_positions_df["Expiration"] - pd.to_datetime('today')).dt.days
 
-    # Round numeric columns
     numeric_cols = open_positions_df.select_dtypes(include=[np.number]).columns
     open_positions_df[numeric_cols] = open_positions_df[numeric_cols].round(2)
-
-    # Replace underscores with spaces for all remaining columns
     open_positions_df.columns = [col.replace("_", " ") for col in open_positions_df.columns]
 
-    # Format date columns
     def format_date_cell(d):
         if pd.isnull(d):
             return ""
@@ -553,7 +632,6 @@ if __name__ == '__main__':
             "DTE":            "DTE (Now)"
         }
         df = df.rename(columns=rename_map)
-
         desired_order = [
             "Symbol", "Position", "Type", "Strike",
             "Expiration Date", "Open Date", 
@@ -562,32 +640,9 @@ if __name__ == '__main__':
         ]
         desired_order = [col for col in desired_order if col in df.columns]
         df = df[desired_order]
-
-        header_tooltips = {
-            "Position":         "Indicates Long or Short.",
-            "Symbol":           "Underlying ticker for the option contract.",
-            "Type":             "Put or Call.",
-            "Strike":           "Strike price of the option.",
-            "Expiration Date":  "Date this option contract will expire.",
-            "Open Date":        "Date this position was opened.",
-            "DTE (Open)":       "Days-to-expiration at the time of opening.",
-            "DTE (Now)":        "Days-to-expiration from today.",
-            "Qty":              "Number of option contracts.",
-            "Premium":          "Fill price per share on opening.",
-            "Cost":             "Net cost or credit at opening."
-        }
-        
-        new_headers = {}
-        for col in df.columns:
-            if col in header_tooltips:
-                new_headers[col] = f'<span title="{header_tooltips[col]}">{col}</span>'
-            else:
-                new_headers[col] = col
-        df = df.rename(columns=new_headers)
         return df
 
     open_positions_df = rename_and_reorder_open_positions(open_positions_df)
-
     open_positions_html = open_positions_df.to_html(
         index=False,
         classes="dataframe sortable-table",
@@ -595,26 +650,62 @@ if __name__ == '__main__':
         escape=False
     )
 
-    # 5) Generate individual trades table (pro)
-    trades_html_df = trades_df.copy()
-    numeric_cols = trades_html_df.select_dtypes(include=[np.number]).columns
-    trades_html_df[numeric_cols] = trades_html_df[numeric_cols].round(2)
+    # F) Build separate trade tables for Pro
+    # 1) Completed Forex (the new matched fx trades)
+    #    -> includes the 'ROUND_TRIP' from process_activity.py
+    fx_only_df = fx_trades_df.copy()
+    if fx_only_df.empty:
+        fx_completed_html = "<p>No completed FX trades.</p>"
+    else:
+        # We'll rename columns to something user-friendly
+        # e.g. "PAIR" => "Ticker", "ROUND_TRIP" => "Round Trip"
+        # but your actual columns might differ
+        # so let's see what's in fx_only_df:
+        #   "ACCOUNT", "PAIR" or "SYMBOL", "OPEN DATE", "CLOSE DATE",
+        #   "NET PROFIT", "RETURN", "ROUND_TRIP", maybe "BASE_CCY", "QUOTE_CCY", etc.
+        
+        # We want "Ticker", "Round Trip", "Open Date", "Close Date", "Profit"
+        # plus anything else you want
+        rename_map = {
+            "PAIR":       "Ticker",      # if you have it
+            "SYMBOL":     "Ticker",      # whichever you actually have
+            "ROUND_TRIP": "Round Trip",
+            "NET PROFIT": "Profit",
+        }
+        fx_only_df.rename(columns=rename_map, inplace=True, errors="ignore")
 
-    # Format date columns
-    def format_date_cell(d):
-        if pd.isnull(d):
-            return ""
-        return (
-            f'<span style="white-space: nowrap;" data-sort="{d.strftime("%Y-%m-%d")}">'
-            f'{d.day} {d.strftime("%b %Y")}'
-            '</span>'
+        # We'll ensure "Profit" is numeric & round it
+        if "Profit" in fx_only_df.columns:
+            fx_only_df["Profit"] = fx_only_df["Profit"].round(2)
+
+        # Format date columns
+        for dcol in ["OPEN DATE", "CLOSE DATE"]:
+            if dcol in fx_only_df.columns:
+                fx_only_df[dcol] = pd.to_datetime(fx_only_df[dcol], errors="coerce")
+                fx_only_df[dcol] = fx_only_df[dcol].apply(format_date_cell)
+        
+        # Keep only certain columns in a final order
+        keep_cols = [
+            "Ticker", "Round Trip", "OPEN DATE", "CLOSE DATE", "Profit"
+        ]
+        existing = [c for c in keep_cols if c in fx_only_df.columns]
+        fx_only_df = fx_only_df[existing]
+
+        fx_completed_html = fx_only_df.to_html(
+            index=False, classes="dataframe sortable-table",
+            border=1, escape=False
         )
-    for date_col in ["OPEN DATE", "CLOSE DATE", "EXPIRATION"]:
-        if date_col in trades_html_df.columns:
-            trades_html_df[date_col] = pd.to_datetime(trades_html_df[date_col], errors="coerce")
-            trades_html_df[date_col] = trades_html_df[date_col].apply(format_date_cell)
 
-    trades_html_df.columns = [col.replace("_", " ") for col in trades_html_df.columns]
+    # 2) Completed Non-FX
+    nonfx_df = combined_df[combined_df["POSITION"] != "FX"].copy()
+    for date_col in ["OPEN DATE", "CLOSE DATE", "EXPIRATION"]:
+        if date_col in nonfx_df.columns:
+            nonfx_df[date_col] = pd.to_datetime(nonfx_df[date_col], errors="coerce")
+            nonfx_df[date_col] = nonfx_df[date_col].apply(format_date_cell)
+
+    numeric_cols = nonfx_df.select_dtypes(include=[np.number]).columns
+    nonfx_df[numeric_cols] = nonfx_df[numeric_cols].round(2)
+    nonfx_df.columns = [col.replace("_", " ") for col in nonfx_df.columns]
 
     def rename_and_reorder_completed_trades(df):
         rename_map = {
@@ -645,53 +736,22 @@ if __name__ == '__main__':
             "Days Held", "Qty", "Premium (Open)", "Premium (Close)",
             "Profit", "Return"
         ]
-        desired_order = [col for col in desired_order if col in df.columns]
-        df = df[desired_order]
-
-        header_tooltips = {
-            "Symbol":          "Underlying ticker (option or stock).",
-            "Position":        "Opened Long or Short.",
-            "Type":            "Put, Call, or Stock.",
-            "Strike":          "Option strike price.",
-            "Open Date":       "Date this trade was opened.",
-            "Close Date":      "Date this trade was closed.",
-            "Expiration Date": "Date the option contract expires.",
-            "Days Held":       "Calendar days from open to close.",
-            "Qty":             "Number of contracts/shares.",
-            "Premium (Open)":  "Price per contract/share on opening.",
-            "Premium (Close)": "Price per contract/share on closing.",
-            "Profit":          "Net P/L in dollars for this trade.",
-            "Return":          "Profit as fraction of cost basis."
-        }
-
-        new_headers = {}
-        for col in df.columns:
-            if col in header_tooltips:
-                new_headers[col] = (
-                    f'<span title="{header_tooltips[col]}">{col}</span>'
-                )
-            else:
-                new_headers[col] = col
-        df = df.rename(columns=new_headers)
-
+        existing = [col for col in desired_order if col in df.columns]
+        df = df[existing]
         return df
 
-    trades_html_df = rename_and_reorder_completed_trades(trades_html_df)
-
-    individual_trades_html_pro = trades_html_df.to_html(
-        index=False,
-        classes="dataframe sortable-table",
-        border=1,
-        escape=False
+    nonfx_df = rename_and_reorder_completed_trades(nonfx_df)
+    individual_trades_html_pro = nonfx_df.to_html(
+        index=False, classes="dataframe sortable-table",
+        border=1, escape=False
     )
 
-    # 6) Format net profit for the pro context
+    # G) Summaries for Pro vs Basic
     net_profit = kpis["net_profit"]
     net_profit_str = (
         f"-${abs(net_profit):,.0f}" if net_profit < 0 else f"${net_profit:,.0f}"
     )
 
-    # 7) Generate "Report Generated" timestamp (UK time), 3 parts
     try:
         tz_uk = ZoneInfo("Europe/London")
         now_uk = datetime.datetime.now(tz_uk)
@@ -705,62 +765,57 @@ if __name__ == '__main__':
         f"{now_uk.strftime('%d %B %Y')}"
     )
 
-    # 8) Create a day-month-year reporting period
-    start_date = trades_df["CLOSE DATE"].min()
+    start_date = combined_df["CLOSE DATE"].min()
     end_date = pd.to_datetime('today').normalize()
     reporting_period_str = (
         f"{start_date.strftime('%d %B %Y')} to {end_date.strftime('%d %B %Y')}"
+        if not pd.isnull(start_date) else ""
     )
 
-    # ------------------------------------------------------------------
-    # PRO REPORT CONTEXT (full detail)
-    # ------------------------------------------------------------------
+    # PRO context
     context_pro = {
-        "Report_Generated": report_generated_str,
-        "Reporting_Period": reporting_period_str,
-        "Total_Trades": kpis["total_trades"],
-        "Net_Profit": net_profit_str,
-        "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.0f}%",
-        "Win_Rate": f"{kpis['win_rate']:.0f}%",
-        "Sharpe_Ratio": f"{kpis['sharpe_ratio']:.2f}",
-        "adjusted_sortino": (
+        "Report_Generated":  report_generated_str,
+        "Reporting_Period":  reporting_period_str,
+        "Total_Trades":      kpis["total_trades"],
+        "Net_Profit":        net_profit_str,
+        "Avg_Trade_Return":  f"{kpis['avg_trade_return']*100:.0f}%",
+        "Win_Rate":          f"{kpis['win_rate']:.0f}%",
+        "Sharpe_Ratio":      f"{kpis['sharpe_ratio']:.2f}",
+        "adjusted_sortino":  (
             f"{kpis['adjusted_sortino_ratio']:.2f}"
             if not np.isnan(kpis['adjusted_sortino_ratio']) else "--"
         ),
-        "Max_Drawdown": f"{kpis['max_drawdown_pct']:.0f}%",
-        "Volatility": f"{kpis['volatility']:.2f}",
-        # Charts in green + darker grey
-        "Equity_Curve": equity_curve_img_pro,
+        "Max_Drawdown":      f"{kpis['max_drawdown_pct']:.0f}%",
+        "Volatility":        f"{kpis['volatility']:.2f}",
+
+        "Equity_Curve":      equity_curve_img_pro,
         "Trade_Return_Histogram": trade_hist_img,
-        "Feature_Plots": feature_plots,
+        "Feature_Plots":     feature_plots,
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,
-        # Tables
-        "Weekly_Summary": weekly_summary_html_pro,
-        "Open_Positions": open_positions_html,
-        "Individual_Trades": individual_trades_html_pro,
-        # Footer
-        "System_Name": "Sdrike"
+
+        "Weekly_Summary":    weekly_summary_html_pro,
+        "Open_Positions":    open_positions_html,
+
+        # The separated tables
+        "Fx_Completed_Trades": fx_completed_html,
+        "Individual_Trades":   individual_trades_html_pro,
+
+        "System_Name":       "Sdrike"
     }
 
-    # ------------------------------------------------------------------
-    # BASIC REPORT CONTEXT (two charts: wide + square)
-    # ------------------------------------------------------------------
-    # 1) Generate a simpler weekly summary
-    weekly_basic = generate_weekly_summary(trades_df)
+    # BASIC context
+    weekly_basic = generate_weekly_summary(combined_df)
     weekly_basic.drop(
         columns=[col for col in weekly_basic.columns if ("Sharpe" in col or "Sortino" in col)],
         inplace=True, errors="ignore"
     )
-    weekly_summary_html_basic = weekly_basic.to_html(
-        escape=False, index=False, classes='sortable-table'
-    )
+    weekly_summary_html_basic = weekly_basic.to_html(escape=False, index=False, classes="sortable-table")
 
-    # 2) Copy trades for the basic table
-    basic_trades_df = trades_df.copy()
+    basic_trades_df = combined_df.copy()
     if "TRADE DIRECTION" in basic_trades_df.columns:
         basic_trades_df["TRADE DIRECTION"] = basic_trades_df["TRADE DIRECTION"].replace({
             "CALL": "Betting in favor",
-            "PUT": "Betting against"
+            "PUT":  "Betting against"
         })
     columns_to_remove = [
         "SHARPE","SORTINO","ADJUSTED SORTINO RATIO","VOLATILITY",
@@ -776,36 +831,35 @@ if __name__ == '__main__':
         index=False, classes="dataframe sortable-table", border=1
     )
 
-    # 3) Generate two versions of the basic chart: wide & square
-    equity_curve_img_basic_wide = generate_basic_equity_wide(trades_df)
-    equity_curve_img_basic_square = generate_basic_equity_square(trades_df)
+    equity_curve_img_basic_wide   = generate_basic_equity_wide(combined_df)
+    equity_curve_img_basic_square = generate_basic_equity_square(combined_df)
 
-    # 4) Create a simpler context that references both wide + square
     context_basic = {
-        "Report_Generated": report_generated_str,
-        "Reporting_Period": reporting_period_str,
-        "Total_Trades": kpis["total_trades"],
-        "Net_Profit": net_profit_str,
-        "Avg_Trade_Return": f"{kpis['avg_trade_return']*100:.0f}%",
-        "Win_Rate": f"{kpis['win_rate']:.0f}%",
-        "Sharpe_Ratio": "",
-        "adjusted_sortino": "",
-        "Max_Drawdown": "",
-        "Volatility": "",
-        # Basic green charts
-        "Equity_Curve_Wide": equity_curve_img_basic_wide,
+        "Report_Generated":  report_generated_str,
+        "Reporting_Period":  reporting_period_str,
+        "Total_Trades":      kpis["total_trades"],
+        "Net_Profit":        net_profit_str,
+        "Avg_Trade_Return":  f"{kpis['avg_trade_return']*100:.0f}%",
+        "Win_Rate":          f"{kpis['win_rate']:.0f}%",
+        "Sharpe_Ratio":      "",
+        "adjusted_sortino":  "",
+        "Max_Drawdown":      "",
+        "Volatility":        "",
+
+        "Equity_Curve_Wide":   equity_curve_img_basic_wide,
         "Equity_Curve_Square": equity_curve_img_basic_square,
-        # Other charts also in green + grey
+
         "Trade_Return_Histogram": trade_hist_img,
-        "Feature_Plots": feature_plots,
+        "Feature_Plots":     feature_plots,
         "Win_Rate_By_Symbol": win_rate_by_symbol_img,
-        # Tables
-        "Weekly_Summary": weekly_summary_html_basic,
-        "Open_Positions": open_positions_html,
+
+        "Weekly_Summary":    weekly_summary_html_basic,
+        "Open_Positions":    open_positions_html,
         "Individual_Trades": individual_trades_html_basic,
+
         "System_Name": "Sdrike Systems"
     }
 
-    # 5) Render both versions
-    render_report("docs/template_pro.html", context_pro, "docs/pro.html")
+    # H) Render
+    render_report("docs/template_pro.html",   context_pro,   "docs/pro.html")
     render_report("docs/template_basic.html", context_basic, "docs/basic.html")

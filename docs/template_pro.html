@@ -368,9 +368,18 @@
     {{ Open_Positions | safe }}
   </div>
 
-  <!-- Individual Trades Table -->
+  <!-- Individual Trades Section -->
   <div class="section" id="individual-trades">
     <h2>Completed Trades</h2>
+
+    <!-- First: Completed Forex Trades -->
+    <h3>Forex Trades</h3>
+    <div class="scrollable-table">
+      {{ Fx_Completed_Trades | safe }}
+    </div>
+    
+    <!-- Next: Completed Options/Stock Trades -->
+    <h3>Options Trades</h3>
     <div class="scrollable-table">
       {{ Individual_Trades | safe }}
     </div>
