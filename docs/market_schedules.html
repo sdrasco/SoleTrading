@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Global Market Hours Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Global Market Hours Dashboard</title>
 
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -11,67 +11,108 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
-  <!-- Day.js + plugins (UTC & timezone) -->
+  <!-- Day.js + plugins (UTC & timezone) -->
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/timezone.js"></script>
 
   <style>
-    :root{
-      --uk-color:#6b9080; --us-color:#c94c4c; --hk-color:#4c72b0; --jp-color:#ff7f0e;
-      --primary-accent:#8fbcb9;
-      --neutral-bg:#f4f7f6; --neutral-text:#333;
-      --panel-bg:#fff;     --panel-shadow:0 2px 5px rgba(0,0,0,.1);
+    :root {
+      --uk-color: #6b9080;
+      --us-color: #c94c4c;
+      --hk-color: #4c72b0;
+      --jp-color: #ff7f0e;
+      --primary-accent: #8fbcb9;
+      --neutral-bg: #f4f7f6;
+      --neutral-text: #333;
+      --panel-bg: #fff;
+      --panel-shadow: 0 2px 5px rgba(0,0,0,.1);
     }
-    @media (prefers-color-scheme: dark){
-      :root{
-        --neutral-bg:#1e293b; --neutral-text:#f1f5f9;
-        --panel-bg:#334155;   --panel-shadow:0 2px 5px rgba(0,0,0,.4);
-        --uk-color:#8dd9c9; --us-color:#ff7366; --hk-color:#7aa2ff; --jp-color:#ffb454;
-        --primary-accent:#38bdf8;
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --neutral-bg: #1e293b;
+        --neutral-text: #f1f5f9;
+        --panel-bg: #334155;
+        --panel-shadow: 0 2px 5px rgba(0,0,0,.4);
+        --uk-color: #8dd9c9;
+        --us-color: #ff7366;
+        --hk-color: #7aa2ff;
+        --jp-color: #ffb454;
+        --primary-accent: #38bdf8;
       }
-      ::-webkit-scrollbar-thumb{background:#475569;border-radius:4px}
+      ::-webkit-scrollbar-thumb {
+        background: #475569;
+        border-radius: 4px;
+      }
     }
 
     /* ---------- Layout ---------- */
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{
-      font-family:'Open Sans',sans-serif;
-      background:var(--neutral-bg);
-      color:var(--neutral-text);
-      padding:20px;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    header{text-align:center;margin-bottom:20px}
-    header h1{color:var(--uk-color);margin-bottom:5px;font-size:1.8rem}
-    .time-display{font-size:1.5rem;font-weight:600;margin-top:5px}
+    body {
+      font-family: 'Open Sans', sans-serif;
+      background: var(--neutral-bg);
+      color: var(--neutral-text);
+      padding: 20px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    header h1 {
+      color: var(--uk-color);
+      margin-bottom: 5px;
+      font-size: 1.8rem;
+    }
+    .time-display {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-top: 5px;
+    }
 
-    .chart-container{
-      background:var(--panel-bg);
-      padding:20px;border-radius:8px;
-      box-shadow:var(--panel-shadow);
-      max-width:800px; margin:40px auto;
+    .chart-container {
+      background: var(--panel-bg);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: var(--panel-shadow);
+      max-width: 800px;
+      margin: 40px auto;
     }
 
     /* scrolling wrapper – horizontal scroll on narrow screens */
-    .chart-scroll{overflow-x:auto;}
+    .chart-scroll {
+      overflow-x: auto;
+    }
 
     /* fixed height everywhere for crisp text */
-    .chart-scroll canvas{
-      min-width:600px;
-      width:100%!important;
-      height:420px;               /* same on desktop & mobile */
+    .chart-scroll canvas {
+      min-width: 600px;
+      width: 100% !important;
+      height: 420px; /* same on desktop & mobile */
     }
 
     /* ---------- Phone tweaks ---------- */
-    @media (max-width:480px){
-      body{padding:12px;}
-      header h1{font-size:1.4rem}
-      .time-display{font-size:1.2rem}
-      .chart-container{padding:12px;margin:24px auto;}
+    @media (max-width: 480px) {
+      body {
+        padding: 12px;
+      }
+      header h1 {
+        font-size: 1.4rem;
+      }
+      .time-display {
+        font-size: 1.2rem;
+      }
+      .chart-container {
+        padding: 12px;
+        margin: 24px auto;
+      }
 
-      .chart-scroll canvas{
-        min-width:500px;          /* still scrollable horizontally */
-        /* height remains 420 px for correct aspect ratio */
+      .chart-scroll canvas {
+        min-width: 500px; /* still scrollable horizontally */
+        /* height remains 420 px for correct aspect ratio */
       }
     }
   </style>
@@ -91,87 +132,260 @@
   </section>
 
   <script>
-    /* 1  markets */
-    const markets=[{label:'London',tz:'Europe/London',sessions:[['08:00','16:30']],colorVar:'--uk-color'},
-      {label:'New York',tz:'America/New_York',sessions:[['09:30','16:00']],colorVar:'--us-color'},
-      {label:'Hong Kong',tz:'Asia/Hong_Kong',sessions:[['09:30','12:00'],['13:00','16:00']],colorVar:'--hk-color'},
-      {label:'Tokyo',tz:'Asia/Tokyo',sessions:[['09:00','15:00']],colorVar:'--jp-color'}];
+    /* ---- 1. Market definitions ---- */
+    const markets = [
+      {
+        label: 'London',
+        tz: 'Europe/London',
+        sessions: [ ['08:00','16:30'] ],
+        colorVar: '--uk-color'
+      },
+      {
+        label: 'New York',
+        tz: 'America/New_York',
+        sessions: [ ['09:30','16:00'] ],
+        colorVar: '--us-color'
+      },
+      {
+        label: 'Hong Kong',
+        tz: 'Asia/Hong_Kong',
+        sessions: [ ['09:30','12:00'], ['13:00','16:00'] ],
+        colorVar: '--hk-color'
+      },
+      {
+        label: 'Tokyo',
+        tz: 'Asia/Tokyo',
+        sessions: [ ['09:00','15:00'] ],
+        colorVar: '--jp-color'
+      }
+    ];
 
-    dayjs.extend(dayjs_plugin_utc); dayjs.extend(dayjs_plugin_timezone);
-    const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    dayjs.extend(dayjs_plugin_utc);
+    dayjs.extend(dayjs_plugin_timezone);
 
-    let rowInfo=[];
-    function buildSeries(){
-      const now=dayjs(); const O=[],L=[],Lab=[],Col=[]; let maxEnd=0; rowInfo=[];
-      markets.forEach(m=>m.sessions.forEach((s,i)=>{
-        const [os,cs]=s, day=now.tz(m.tz).format('YYYY-MM-DD');
-        let ou=dayjs.tz(`${day} ${os}`,m.tz).utc(), cu=dayjs.tz(`${day} ${cs}`,m.tz).utc();
-        if(cu.isBefore(ou)) cu=cu.add(1,'day');
-        const ol=ou.local(), cl=cu.local();
-        let od=ol.hour()+ol.minute()/60, cd=cl.hour()+cl.minute()/60;
-        if(cd<=od) cd+=24;
-        O.push(od); L.push(cd-od); Lab.push(m.sessions.length===1?m.label:`${m.label} ${i?'PM':'AM'}`);
-        Col.push(css(m.colorVar)); rowInfo.push({openLocal:ol,closeLocal:cl}); maxEnd=Math.max(maxEnd,cd);
-      }));
-      return{opens:O,lens:L,labels:Lab,colors:Col,maxEnd};
+    /* read CSS custom prop */
+    const css = (propName) => getComputedStyle(document.documentElement).getPropertyValue(propName).trim();
+
+    let rowInfo = []; // stores open/close times for tooltip lookups
+
+    /**
+     * Build the bar positions from each market’s session times.
+     * - returns {opens, lens, labels, colors, maxEnd}
+     */
+    function buildSeries() {
+      const now = dayjs();
+      const O = [], L = [], Lab = [], Col = [];
+      let maxEnd = 0;
+      rowInfo = []; // reset each time
+
+      markets.forEach((m) => {
+        m.sessions.forEach((s, i) => {
+          const [openStr, closeStr] = s;
+          const day = now.tz(m.tz).format('YYYY-MM-DD');
+
+          // Convert open/close times to UTC, then also to local for bar positioning
+          let openUtc = dayjs.tz(`${day} ${openStr}`, m.tz).utc();
+          let closeUtc = dayjs.tz(`${day} ${closeStr}`, m.tz).utc();
+
+          // if close time is "earlier" than open in 24h sense, add 1 day
+          if (closeUtc.isBefore(openUtc)) {
+            closeUtc = closeUtc.add(1, 'day');
+          }
+
+          // local times for bar placement
+          const openLocal = openUtc.local();
+          const closeLocal = closeUtc.local();
+          let oHour = openLocal.hour() + openLocal.minute()/60;
+          let cHour = closeLocal.hour() + closeLocal.minute()/60;
+          // if cHour <= oHour, it’s crossing midnight local, so add 24
+          if (cHour <= oHour) {
+            cHour += 24;
+          }
+
+          // Build data arrays
+          O.push(oHour);
+          L.push(cHour - oHour);
+          Lab.push(m.sessions.length === 1 ? m.label : `${m.label} ${i ? 'PM' : 'AM'}`);
+          Col.push(css(m.colorVar));
+
+          rowInfo.push({
+            openLocal,
+            closeLocal
+          });
+
+          maxEnd = Math.max(maxEnd, cHour);
+        });
+      });
+
+      return { opens: O, lens: L, labels: Lab, colors: Col, maxEnd };
     }
 
-    /* 2  timeline plugin */
-    const timeLinePlugin={id:'timeLine',afterDraw:ch=>{
-      const n=dayjs(), h=n.hour()+n.minute()/60+n.second()/3600;
-      const x=ch.scales.x.getPixelForValue(h),{top,bottom}=ch.scales.y,ctx=ch.ctx;
-      const a=css('--primary-accent'),gap=3,base=1.5;
-      ctx.save();
-      for(let y=top;y<=bottom;y+=gap){
-        const phase=(Date.now()/1600+y*0.05)%Math.PI;
-        const r=base+Math.sin(phase)*0.8;
-        ctx.beginPath();ctx.arc(x,y,r,0,2*Math.PI);ctx.fillStyle=a;ctx.fill();
-      }ctx.restore();
-    }};
+    /* ---- 2. timeLinePlugin: draws the dotted “current time” line after each render() ---- */
+    const timeLinePlugin = {
+      id: 'timeLine',
+      afterDraw: (chart) => {
+        const now = dayjs();
+        // convert current time to decimal hour
+        const h = now.hour() + now.minute()/60 + now.second()/3600;
+        const xPixel = chart.scales.x.getPixelForValue(h);
+        const { top, bottom } = chart.scales.y;
+        const ctx = chart.ctx;
 
-    /* 3  chart init */
-    const ctx=document.getElementById('marketChart').getContext('2d');
-    const first=buildSeries(),tickColor=css('--neutral-text');
-    const chart=new Chart(ctx,{type:'bar',
-      data:{labels:first.labels,
-        datasets:[
-          {data:first.opens,backgroundColor:'transparent',stack:'grp'},
-          {data:first.lens ,backgroundColor:first.colors,borderColor:first.colors,borderWidth:1,
-           borderRadius:6,borderSkipped:false,stack:'grp'}]},
-      options:{
-        responsive:true,maintainAspectRatio:false,indexAxis:'y',
-        scales:{
-          x:{stacked:true,min:0,max:Math.max(24,Math.ceil(first.maxEnd/2)*2),
-             ticks:{stepSize:2,callback:v=>`${v%24}:00`,color:tickColor}},
-          y:{stacked:true,ticks:{color:tickColor}}},
-        plugins:{legend:{display:false},
-          tooltip:{callbacks:{label:({dataIndex:i})=>{
-            const now=dayjs(),{openLocal:o,closeLocal:c}=rowInfo[i];
-            if(now.isAfter(o)&&now.isBefore(c))return'Open for business';
-            const m=(now.isBefore(o)?o:o.add(1,'day')).diff(now,'minute');
-            return`Opens in ${Math.floor(m/60)}h ${m%60}m`;}}}}
-      },plugins:[timeLinePlugin]});
+        // color & spacing for the dots
+        const lineColor = css('--primary-accent');
+        const gap = 3;
+        const base = 1.5;
 
-    /* 4  clock + refresh */
-    function updateClock(){
-      const now=new Date(),opt={hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'};
-      document.getElementById('local-time').textContent=now.toLocaleTimeString([],opt);}
-    function tick(){
-      updateClock();
-      const {opens,lens,labels,colors,maxEnd}=buildSeries();
-      const now=dayjs(),curH=now.hour()+now.minute()/60,
-            needMax=Math.max(24,Math.ceil(Math.max(maxEnd,curH)/2)*2);
-      chart.data.labels=labels;
-      chart.data.datasets[0].data=opens;
-      chart.data.datasets[1].data=lens;
-      chart.data.datasets[1].backgroundColor=colors;
-      chart.data.datasets[1].borderColor=colors;
-      chart.options.scales.x.max=needMax;
-      const tc=css('--neutral-text');
-      chart.options.scales.x.ticks.color=tc;chart.options.scales.y.ticks.color=tc;
+        ctx.save();
+        // draw the dotted line from top -> bottom
+        for (let y = top; y <= bottom; y += gap) {
+          // a little sin() wave to produce a “pulsing” or “throbbing” effect
+          const phase = (Date.now()/1600 + y*0.05) % Math.PI;
+          const r = base + Math.sin(phase)*0.8;
+          ctx.beginPath();
+          ctx.arc(xPixel, y, r, 0, 2*Math.PI);
+          ctx.fillStyle = lineColor;
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    };
+
+    /* ---- 3. Initialize Chart ---- */
+    const ctx = document.getElementById('marketChart').getContext('2d');
+    const initial = buildSeries();
+
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: initial.labels,
+        datasets: [
+          {
+            // offset dataset for each bar
+            data: initial.opens,
+            backgroundColor: 'transparent',
+            stack: 'grp'
+          },
+          {
+            // main “length” dataset for each bar
+            data: initial.lens,
+            backgroundColor: initial.colors,
+            borderColor: initial.colors,
+            borderWidth: 1,
+            borderRadius: 6,
+            borderSkipped: false,
+            stack: 'grp'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        scales: {
+          x: {
+            stacked: true,
+            // expand range based on maxEnd
+            min: 0,
+            max: Math.max(24, Math.ceil(initial.maxEnd/2)*2),
+            ticks: {
+              stepSize: 2,
+              callback: (v) => `${v % 24}:00`, // display hours: "0:00, 2:00, ..."
+              color: css('--neutral-text')
+            }
+          },
+          y: {
+            stacked: true,
+            ticks: {
+              color: css('--neutral-text')
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ({ dataIndex: i }) => {
+                const now = dayjs();
+                const { openLocal, closeLocal } = rowInfo[i];
+                if (now.isAfter(openLocal) && now.isBefore(closeLocal)) {
+                  // Currently open
+                  const minutesToClose = closeLocal.diff(now, 'minute');
+                  return `Closes in ${Math.floor(minutesToClose/60)}h ${minutesToClose % 60}m`;
+                } else {
+                  // Market is closed
+                  // If now is after closeLocal, we look to tomorrow’s openLocal
+                  const nextOpen = now.isBefore(openLocal) ? openLocal : openLocal.add(1, 'day');
+                  const minutesToOpen = nextOpen.diff(now, 'minute');
+                  return `Opens in ${Math.floor(minutesToOpen/60)}h ${minutesToOpen % 60}m`;
+                }
+              }
+            }
+          }
+        }
+      },
+      plugins: [timeLinePlugin]
+    });
+
+    /**
+     * ---- 4a. Clock and chart data updates once per second ----
+     * - Rebuild the market session data to recalc “opens in / closes in” tooltips
+     * - Adjust the bar positions if needed (when crossing day boundaries, etc.)
+     * - Update the clock display
+     */
+    function updateClockAndData() {
+      // 1. Update the local clock in the header
+      const now = new Date();
+      const opt = {
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZoneName: 'short'
+      };
+      document.getElementById('local-time').textContent = now.toLocaleTimeString([], opt);
+
+      // 2. Rebuild data for chart
+      const series = buildSeries();
+      const nowHour = dayjs().hour() + dayjs().minute()/60;
+      const needMax = Math.max(24, Math.ceil(Math.max(series.maxEnd, nowHour)/2)*2);
+
+      // 3. Update chart dataset arrays (positions & lengths)
+      chart.data.labels = series.labels;
+      chart.data.datasets[0].data = series.opens; // offset
+      chart.data.datasets[1].data = series.lens;  // length
+      chart.data.datasets[1].backgroundColor = series.colors;
+      chart.data.datasets[1].borderColor = series.colors;
+
+      // 4. Adjust X-axis max if needed
+      chart.options.scales.x.max = needMax;
+
+      // Update axis tick colors (in case of theme switch, etc.)
+      const tc = css('--neutral-text');
+      chart.options.scales.x.ticks.color = tc;
+      chart.options.scales.y.ticks.color = tc;
+
+      // 5. Now do a chart update with no animation for the bar data
       chart.update('none');
     }
-    tick(); setInterval(tick,400);
+
+    /**
+     * ---- 4b. Animate the dotted line using requestAnimationFrame ----
+     * This calls `chart.render()`, which triggers the plugin’s afterDraw
+     * (the line gets re-drawn at a new “phase” for the pulse).
+     */
+    function animateLine() {
+      chart.render();
+      requestAnimationFrame(animateLine);
+    }
+
+    // ---- 5. Kick off both loops ----
+
+    // (A) Update clock & chart data once per second
+    updateClockAndData();              // run once right away
+    setInterval(updateClockAndData, 1000);
+
+    // (B) Animate the dotted line
+    requestAnimationFrame(animateLine);
   </script>
 </body>
 </html>
