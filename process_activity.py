@@ -1,606 +1,667 @@
 #!/usr/bin/env python3
-"""
-process_activity.py  –  consolidate Ally & IB activity
 
-Outputs in ./data/cleaned/
-    trades.csv        options (closed)
-    unopened.csv      options close‑leg without matching open‑leg
-    unclosed.csv      options positions still open
-    fx_trades.csv     spot‑FX trades (closed)
-    fx_unclosed.csv   spot‑FX open lots
-"""
-import csv, re, sys
-from abc import ABC, abstractmethod
+import sys
+import csv
+import glob
+import pandas as pd
+import re
 from collections import deque
+from abc import ABC, abstractmethod
 from pathlib import Path
 
-import pandas as pd
 
+##################################################################
+# 1) Base broker parser classes
+##################################################################
 
-# ────────────────────────────────────────────────────────────────
-# 1)  Broker‑specific parsers
-# ────────────────────────────────────────────────────────────────
 class BaseBrokerParser(ABC):
     @abstractmethod
     def parse_row(self, row: list):
-        """Return a dict or None if the row is not relevant."""
-        ...
+        """
+        Must return a dict:
+          {
+            'account': ...,
+            'date': ...,
+            'activity': ...,
+            'qty': ...,
+            'symbol': ...,
+            'description': ...,
+            'price': ...,
+            'commission': ...,
+            'fees': ...,
+            'amount': ...
+          }
+        or None if the row doesn't parse or isn't relevant.
+        """
+        pass
 
 
 class AllyParser(BaseBrokerParser):
-    """Ally’s tab‑delimited `activity.txt`."""
+    """
+    Parses rows from a tab-delimited ally.txt file.
+    Each row is like:
+      [
+        '03/28/2025', 'Sold To Close', '-1', 'QQQ Put',
+        'QQQ Apr 04 2025 475.00 Put', '$10.04', '$0.50', '$0.07', '$1,003.43'
+      ]
+    We require at least 9 columns.
+    """
 
-    def parse_row(self, row):
+    def parse_row(self, row: list):
+        # Skip empty or short rows
         if len(row) < 9:
             return None
-        date, activity, qty, sym_or_type, desc, price, comm, fees, amt = row[:9]
-        symbol = sym_or_type.split()[0] if activity != "Cash Movement" else ""
-        return dict(
-            account="Ally",
-            date=date,
-            activity=activity,
-            qty=qty,
-            symbol=symbol,
-            description=desc,
-            price=price,
-            commission=comm,
-            fees=fees,
-            amount=amt,
-            asset="OPT",
-        )
+
+        date, activity, qty, sym_or_type, description, price, commission, fees, amount = row[:9]
+
+        # For "Cash Movement," deduce symbol differently
+        if activity == "Cash Movement":
+            if "FULLYPAID LENDING REBATE" in description:
+                symbol = sym_or_type
+            else:
+                symbol = ""
+        else:
+            symbol = sym_or_type.split()[0]
+
+        return {
+            'account': 'Ally',
+            'date': date,
+            'activity': activity,
+            'qty': qty,
+            'symbol': symbol,
+            'description': description,
+            'price': price,
+            'commission': commission,
+            'fees': fees,
+            'amount': amount
+        }
 
 
 class IBParser(BaseBrokerParser):
     """
-    Parses both option‑rows and spot‑FX rows from
-    `Trades,Data,Order,…` sections of an IB statement.
+    Parses rows from a comma-delimited IB.csv file.
+    Each row might look like:
+      [
+        'Trades', 'Data', 'Order', 'Equity and Index Options', 'USD',
+        'CAT 17APR25 250 P', '2025-04-04, 10:53:04', '1', '3.92', '2.955',
+        '-392', '-1.05725', '393.05725', '0', '0', '-96.5', 'O'
+      ]
+    We require at least 17 columns. Only rows with [0]=='Trades', [1]=='Data', [2]=='Order' are relevant.
     """
 
-    MONTH = dict(
-        JAN="Jan",
-        FEB="Feb",
-        MAR="Mar",
-        APR="Apr",
-        MAY="May",
-        JUN="Jun",
-        JUL="Jul",
-        AUG="Aug",
-        SEP="Sep",
-        OCT="Oct",
-        NOV="Nov",
-        DEC="Dec",
-    )
-
-    # ---------------- FX rows -------------------------------------------------
-    def _parse_fx(self, row):
-        # columns: …,PAIR,DATE,  QTY,PRICE,,PROCEEDS,COMM,…
-        pair, dt, qty_s, px, proceeds, comm = row[5], row[6], row[7], row[8], row[10], row[11]
-        try:
-            qty = float(qty_s.replace(",", ""))
-        except ValueError:
+    def parse_row(self, row: list):
+        if len(row) < 17:
             return None
-        base, quote = pair.split(".")
-        side = "Bought" if qty > 0 else "Sold"
-        return dict(
-            account="IB",
-            date=dt,
-            activity=f"{side} {base}",
-            qty=qty_s,
-            symbol=pair,           # e.g. "GBP.USD"
-            description=f"FX {pair}",
-            price=px,
-            commission=comm,
-            fees="0",
-            amount=proceeds,
-            asset="FX",
-            base_ccy=base,        # e.g. "GBP"
-            quote_ccy=quote,      # e.g. "USD"
-        )
 
-    # ---------------- Option rows --------------------------------------------
-    def _parse_opt(self, row):
-        sym, dt, qty_s, tpx, proceeds, comm, code = (
-            row[5],
-            row[6],
-            row[7],
-            row[8],
-            row[10],
-            row[11],
-            row[16],
-        )
+        # Check the first three columns
+        if row[0] != 'Trades' or row[1] != 'Data' or row[2] != 'Order':
+            return None
 
+        symbol_full  = row[5]   # e.g. "CAT 17APR25 250 P"
+        date_time    = row[6]   # e.g. "2025-04-04, 10:53:04"
+        qty_str      = row[7]   # e.g. "1" or "-1"
+        t_price_str  = row[8]   # e.g. "3.92"
+        proceeds_str = row[10]  # e.g. "-392"
+        comm_fee_str = row[11]  # e.g. "-1.05725"
+        code         = row[16]  # e.g. "O" or "C" or "O;P" etc.
+
+        # Convert quantity
         try:
-            qty = int(qty_s)
+            quantity = int(qty_str)
         except ValueError:
             return None
 
-        side_flag = code.split(";")[0]
-        if side_flag == "O":
-            activity = "Bought To Open" if qty > 0 else "Sold To Open"
-        elif side_flag == "C":
-            activity = "Bought To Close" if qty > 0 else "Sold To Close"
+        # Trim the code so "O;P" => "O", "C;something" => "C"
+        code_core = code.split(';')[0].strip()
+
+        # Determine activity from code + sign of quantity
+        if code_core == 'O':
+            if quantity > 0:
+                activity = 'Bought To Open'
+            else:
+                activity = 'Sold To Open'
+        elif code_core == 'C':
+            if quantity > 0:
+                activity = 'Bought To Close'
+            else:
+                activity = 'Sold To Close'
         else:
-            return None  # other codes not handled
+            # Unrecognized code
+            return None
+
+        # We'll treat comm_fee_str as commission, fees=0
+        commission_str = comm_fee_str
+        fees_str = '0'
+
+        # 'amount' from proceeds
+        amount_str = proceeds_str
+        # 'price' from T. Price
+        price_str = t_price_str
+
+        # Parse "CAT 17APR25 250 P" -> "CAT Apr 17 2025 250.00 Put"
+        parts = symbol_full.split()
+        if len(parts) != 4:
+            return None
+
+        ticker = parts[0]
+        raw_exp = parts[1]      # "17APR25"
+        raw_strike = parts[2]   # "250"
+        raw_putcall = parts[3]  # "P" or "C"
+
+        month_map = {
+            'JAN':'Jan','FEB':'Feb','MAR':'Mar','APR':'Apr','MAY':'May','JUN':'Jun',
+            'JUL':'Jul','AUG':'Aug','SEP':'Sep','OCT':'Oct','NOV':'Nov','DEC':'Dec'
+        }
+        day_str = raw_exp[:2]         # "17"
+        mon_str = raw_exp[2:5].upper()# "APR"
+        yr_str  = raw_exp[5:]         # "25" => "2025"
+
+        if mon_str not in month_map:
+            return None
+
+        month_str = month_map[mon_str]
+        year_full = f"20{yr_str}"
+        # zero-pad day
+        expiry_str = f"{month_str} {int(day_str):02d} {year_full}"
 
         try:
-            tk, raw_exp, raw_strike, pc = sym.split()
+            strike_float = float(raw_strike)
         except ValueError:
-            return None  # not a 4‑part option symbol
-
-        day, mon3, yr = raw_exp[:2], raw_exp[2:5], raw_exp[5:]
-        if mon3.upper() not in self.MONTH:
             return None
-        exp = f"{self.MONTH[mon3.upper()]} {int(day):02d} 20{yr}"
-        strike = f"{float(raw_strike):.2f}"
-        opt_type = "Put" if pc.upper() == "P" else "Call"
-        desc = f"{tk} {exp} {strike} {opt_type}"
+        strike_formatted = f"{strike_float:.2f}"
 
-        return dict(
-            account="IB",
-            date=dt,
-            activity=activity,
-            qty=qty_s,
-            symbol=tk,
-            description=desc,
-            price=tpx,
-            commission=comm,
-            fees="0",
-            amount=proceeds,
-            asset="OPT",
-        )
+        if raw_putcall.upper() == 'P':
+            option_type = 'Put'
+        else:
+            option_type = 'Call'
 
-    # ---------------- master dispatch ----------------------------------------
-    def parse_row(self, row):
-        if len(row) < 12 or row[:3] != ["Trades", "Data", "Order"]:
-            return None
-        return (
-            self._parse_fx(row)
-            if row[3] == "Forex"
-            else self._parse_opt(row)
-            if row[3] == "Equity and Index Options"
-            else None
-        )
+        description_str = f"{ticker} {expiry_str} {strike_formatted} {option_type}"
+
+        return {
+            'account': 'IB',
+            'date': date_time,
+            'activity': activity,
+            'qty': qty_str,
+            'symbol': ticker,
+            'description': description_str,
+            'price': price_str,
+            'commission': commission_str,
+            'fees': fees_str,
+            'amount': amount_str
+        }
 
 
-# ────────────────────────────────────────────────────────────────
-# 2)  Generic helpers
-# ────────────────────────────────────────────────────────────────
-def parse_currency(x: str) -> float:
-    """Convert strings like '$1,234.50' → 1234.5"""
-    return float(str(x).replace("$", "").replace(",", ""))
+##################################################################
+# 2) parse_currency, parse_mixed_date
+##################################################################
 
+def parse_currency(val):
+    return float(str(val).replace('$', '').replace(',', ''))
 
-def parse_mixed_date(s: str) -> pd.Timestamp:
-    for f in ("%m/%d/%Y", "%Y-%m-%d, %H:%M:%S"):
-        try:
-            return pd.to_datetime(s, format=f)
-        except ValueError:
-            pass
-    return pd.to_datetime(s)  # fall back to auto‑parse
+def parse_mixed_date(str_date):
+    """
+    Tries to parse:
+      Ally: "MM/DD/YYYY"
+      IB:   "YYYY-MM-DD, HH:MM:SS"
+    If both fail, fallback to auto-parse.
+    """
+    try:
+        return pd.to_datetime(str_date, format='%m/%d/%Y')
+    except ValueError:
+        pass
 
+    try:
+        return pd.to_datetime(str_date, format='%Y-%m-%d, %H:%M:%S')
+    except ValueError:
+        pass
 
-# ────────────────────────────────────────────────────────────────
-# 3)  Stage‑1 : raw → option/FX staging CSVs
-# ────────────────────────────────────────────────────────────────
-def stage_csvs(brokers, out_opt: Path, out_fx: Path):
-    opt_cols = [
-        "ACCOUNT",
-        "DATE",
-        "ACTIVITY",
-        "QTY",
-        "SYMBOL",
-        "DESCRIPTION",
-        "PRICE",
-        "COMMISSION",
-        "FEES",
-        "AMOUNT",
-    ]
-    fx_cols = [
-        "ACCOUNT",
-        "DATE",
-        "ACTIVITY",
-        "QTY",
-        "PAIR",
-        "PRICE",
-        "COMMISSION",
-        "FEES",
-        "AMOUNT",
-        "BASE",
-        "QUOTE",
+    return pd.to_datetime(str_date)  # fallback guess
+
+##################################################################
+# 3) build_transactions
+##################################################################
+
+def build_transactions(broker_files, transactions_file='transactions.csv'):
+    """
+    For each file in broker_files, read it with the correct delimiter, pass each row to the parser,
+    and write out a single combined CSV with columns:
+       ACCOUNT, DATE, ACTIVITY, QTY, SYMBOL, DESCRIPTION, PRICE, COMMISSION, FEES, AMOUNT
+    """
+    columns = [
+        "ACCOUNT", "DATE", "ACTIVITY", "QTY", "SYMBOL", "DESCRIPTION",
+        "PRICE", "COMMISSION", "FEES", "AMOUNT"
     ]
 
-    with open(out_opt, "w", newline="") as fo, open(out_fx, "w", newline="") as ff:
-        ow, fw = csv.writer(fo), csv.writer(ff)
-        ow.writerow(opt_cols)
-        fw.writerow(fx_cols)
+    with open(transactions_file, 'w', newline='') as outfile:
+        writer = csv.writer(outfile)
+        writer.writerow(columns)
 
-        for path, parser in brokers:
-            print(f"Parsing {path}")
-            delim = "\t" if path.endswith(".txt") else ","
-            for row in csv.reader(open(path, newline=""), delimiter=delim):
-                p = parser.parse_row(row)
-                if not p:
-                    continue
+        for file_path, parser in broker_files:
+            print(f"Parsing '{file_path}' with {parser.__class__.__name__}...")
 
-                if p["asset"] == "OPT":
-                    ow.writerow([p[k.lower()] for k in opt_cols])
-                else:  # FX
-                    fw.writerow(
-                        [
-                            p["account"],
-                            p["date"],
-                            p["activity"],
-                            p["qty"],
-                            p["symbol"],        # PAIR
-                            p["price"],
-                            p["commission"],
-                            p["fees"],
-                            p["amount"],
-                            p["base_ccy"],
-                            p["quote_ccy"],
-                        ]
-                    )
-    print("Stage‑1 complete.")
+            # Decide delimiter by file extension
+            if file_path.endswith('.txt'):
+                # Ally
+                with open(file_path, 'r', newline='') as f:
+                    rowreader = csv.reader(f, delimiter='\t')
+                    for row in rowreader:
+                        parsed = parser.parse_row(row)
+                        if not parsed:
+                            continue
+                        writer.writerow([
+                            parsed['account'],
+                            parsed['date'],
+                            parsed['activity'],
+                            parsed['qty'],
+                            parsed['symbol'],
+                            parsed['description'],
+                            parsed['price'],
+                            parsed['commission'],
+                            parsed['fees'],
+                            parsed['amount']
+                        ])
 
+            elif file_path.endswith('.csv'):
+                # IB
+                with open(file_path, 'r', newline='') as f:
+                    rowreader = csv.reader(f)
+                    for row in rowreader:
+                        parsed = parser.parse_row(row)
+                        if not parsed:
+                            continue
+                        writer.writerow([
+                            parsed['account'],
+                            parsed['date'],
+                            parsed['activity'],
+                            parsed['qty'],
+                            parsed['symbol'],
+                            parsed['description'],
+                            parsed['price'],
+                            parsed['commission'],
+                            parsed['fees'],
+                            parsed['amount']
+                        ])
 
-# ────────────────────────────────────────────────────────────────
-# 4)  Option lane helpers
-# ────────────────────────────────────────────────────────────────
-def _desc(row):
-    m = re.match(
-        r"^(?P<s>\S+) (?P<d>\w+ \d{2} \d{4}) (?P<k>\d+\.\d+) (?P<t>Call|Put)$",
-        row["DESCRIPTION"],
-    )
-    if m:
-        row["OPT_SYMBOL"] = m["s"]
-        row["EXPIRATION_DATE"] = pd.to_datetime(m["d"])
-        row["STRIKE"] = float(m["k"])
-        row["OPTION_TYPE"] = m["t"]
+            else:
+                print(f"Warning: Unknown file extension for {file_path}, skipping...")
+
+##################################################################
+# 4) parse_description, read_transactions, merges, matching, etc.
+##################################################################
+
+def parse_description(row):
+    pattern = r'^(?P<symbol>\S+) (?P<date>\w+ \d{2} \d{4}) (?P<strike>\d+\.\d+) (?P<type>Call|Put)$'
+    match = re.match(pattern, row['DESCRIPTION'])
+    if match:
+        row['OPT_SYMBOL'] = match.group('symbol')
+        row['EXPIRATION_DATE'] = pd.to_datetime(match.group('date'))
+        row['STRIKE'] = float(match.group('strike'))
+        row['OPTION_TYPE'] = match.group('type')
+    else:
+        row['OPT_SYMBOL'] = None
+        row['EXPIRATION_DATE'] = None
+        row['STRIKE'] = None
+        row['OPTION_TYPE'] = None
     return row
 
+def read_transactions(file):
+    df = pd.read_csv(file, thousands=',')
+    # Filter out "Cash Movement" just like before
+    df = df[df['ACTIVITY'] != 'Cash Movement'].copy()
 
-def load_opt(csv_path: Path) -> pd.DataFrame:
-    df = pd.read_csv(csv_path, thousands=",")
-    df = df[df["ACTIVITY"] != "Cash Movement"].copy()
-    for c in ["PRICE", "COMMISSION", "FEES", "AMOUNT"]:
-        df[c] = df[c].apply(parse_currency)
+    currency_cols = ['PRICE', 'COMMISSION', 'FEES', 'AMOUNT']
+    for col in currency_cols:
+        df[col] = df[col].apply(parse_currency)
 
-    df["QTY"] = pd.to_numeric(df["QTY"]).abs()
-    df["DATE"] = df["DATE"].apply(parse_mixed_date)
-    df.loc[df["ACTIVITY"] == "Expired", "ACTIVITY"] = "Sold To Close"
+    df['QTY'] = pd.to_numeric(df['QTY'])
+    df['QTY'] = df['QTY'].abs()
 
-    df = df.apply(_desc, axis=1)
-    df.dropna(subset=["OPT_SYMBOL"], inplace=True)
+    df['DATE'] = df['DATE'].apply(parse_mixed_date)
 
-    df["ACTIVITY PRIORITY"] = df["ACTIVITY"].map(
-        {"Bought To Open": 0, "Sold To Open": 0, "Sold To Close": 1, "Bought To Close": 1}
-    )
-    df.sort_values(["DATE", "ACTIVITY PRIORITY"], inplace=True)
+    # Some brokers might show expired options as "Expired" activity
+    df.loc[df['ACTIVITY'] == 'Expired', 'ACTIVITY'] = 'Sold To Close'
+
+    df = df.apply(parse_description, axis=1)
+    df.dropna(subset=['OPT_SYMBOL'], inplace=True)
+
+    df['ACTIVITY PRIORITY'] = df['ACTIVITY'].map({
+        'Bought To Open': 0,
+        'Sold To Open': 0,
+        'Sold To Close': 1,
+        'Bought To Close': 1
+    })
+
+    df.sort_values(by=['DATE', 'ACTIVITY PRIORITY'], ascending=[True, True], inplace=True)
     df.reset_index(drop=True, inplace=True)
+
     return df
 
-
-def merge_simultaneous(df: pd.DataFrame) -> pd.DataFrame:
-    """Combine fills of the same leg on the same timestamp."""
-    merged, i = [], 0
+def merge_simultaneous(df):
+    """
+    Merges trades that have identical date/activity/option identity,
+    but might come in separate lines.  Weighted price is re-calculated.
+    """
+    merged = []
+    i = 0
     while i < len(df):
         while (
             i + 1 < len(df)
-            and df.at[i, "DATE"] == df.at[i + 1, "DATE"]
-            and df.at[i, "ACTIVITY"] == df.at[i + 1, "ACTIVITY"]
-            and df.at[i, "ACCOUNT"] == df.at[i + 1, "ACCOUNT"]
-            and df.at[i, "OPT_SYMBOL"] == df.at[i + 1, "OPT_SYMBOL"]
-            and df.at[i, "STRIKE"] == df.at[i + 1, "STRIKE"]
-            and df.at[i, "EXPIRATION_DATE"] == df.at[i + 1, "EXPIRATION_DATE"]
-            and df.at[i, "OPTION_TYPE"] == df.at[i + 1, "OPTION_TYPE"]
+            and df.at[i, 'DATE'] == df.at[i + 1, 'DATE']
+            and df.at[i, 'ACTIVITY'] == df.at[i + 1, 'ACTIVITY']
+            and df.at[i, 'ACCOUNT'] == df.at[i + 1, 'ACCOUNT']  # must also be same account
+            and df.at[i, 'OPT_SYMBOL'] == df.at[i + 1, 'OPT_SYMBOL']
+            and df.at[i, 'STRIKE'] == df.at[i + 1, 'STRIKE']
+            and df.at[i, 'EXPIRATION_DATE'] == df.at[i + 1, 'EXPIRATION_DATE']
+            and df.at[i, 'OPTION_TYPE'] == df.at[i + 1, 'OPTION_TYPE']
         ):
-            w_avg = (
-                df.at[i, "PRICE"] * df.at[i, "QTY"]
-                + df.at[i + 1, "PRICE"] * df.at[i + 1, "QTY"]
-            ) / (df.at[i, "QTY"] + df.at[i + 1, "QTY"])
-            for col in ["QTY", "COMMISSION", "FEES", "AMOUNT"]:
-                df.at[i + 1, col] += df.at[i, col]
-            df.at[i + 1, "PRICE"] = round(w_avg, 2)
+            price1 = df.at[i, 'PRICE']
+            price2 = df.at[i + 1, 'PRICE']
+            weighted_price = (price1 * df.at[i, 'QTY'] + price2 * df.at[i + 1, 'QTY']) / (df.at[i, 'QTY'] + df.at[i + 1, 'QTY'])
+            df.at[i + 1, 'QTY'] += df.at[i, 'QTY']
+            df.at[i + 1, 'PRICE'] = round(weighted_price, 2)
+            df.at[i + 1, 'COMMISSION'] += df.at[i, 'COMMISSION']
+            df.at[i + 1, 'FEES'] += df.at[i, 'FEES']
+            df.at[i + 1, 'AMOUNT'] += df.at[i, 'AMOUNT']
             i += 1
         merged.append(df.iloc[i])
         i += 1
     return pd.DataFrame(merged)
 
+def format_strike(strike):
+    if strike is None:
+        return None
+    if float(strike).is_integer():
+        return int(strike)
+    return round(strike, 2)
 
-def match_option_trades(df: pd.DataFrame):
+def match_trades(df):
     """
-    FIFO match within each account/symbol/expiration/strike/type.
-    Returns (trades_df, unopened_df, unclosed_df).
+    Matches open/close trades on a FIFO basis, but only within the same ACCOUNT.
     """
-    open_q, trades, unopened = {}, [], []
+    open_positions = {}
+    trades = []
+    unopened = []
 
     for _, row in df.iterrows():
+        # Add ACCOUNT to the key so that cross-account matches don't happen:
         key = (
-            row["ACCOUNT"],
-            row["OPT_SYMBOL"],
-            row["EXPIRATION_DATE"],
-            row["STRIKE"],
-            row["OPTION_TYPE"],
+            row['ACCOUNT'],
+            row['OPT_SYMBOL'],
+            row['EXPIRATION_DATE'],
+            row['STRIKE'],
+            row['OPTION_TYPE']
         )
 
-        if "Open" in row["ACTIVITY"]:
-            open_q.setdefault(key, deque()).append(row.copy())
-            open_q[key][-1]["_orig_qty"] = row["QTY"]
-            continue
+        if row['ACTIVITY'] in ['Bought To Open', 'Sold To Open']:
+            if key not in open_positions:
+                open_positions[key] = deque()
+            row['_original_qty'] = row['QTY']
+            open_positions[key].append(row.copy())
 
-        if key not in open_q or not open_q[key]:
-            unopened.append(row.copy())
-            continue
+        elif row['ACTIVITY'] in ['Sold To Close', 'Bought To Close']:
+            qty_to_match = row['QTY']
+            close_per_contract = row['AMOUNT'] / row['QTY']
+            close_commission_per_contract = row['COMMISSION'] / row['QTY']
+            close_fees_per_contract = row['FEES'] / row['QTY']
+            close_price = round(row['PRICE'], 2)
 
-        qty_left = row["QTY"]
-        close_pc = row["AMOUNT"] / row["QTY"]
-        close_cpc = row["COMMISSION"] / row["QTY"]
-        close_fpc = row["FEES"] / row["QTY"]
+            # If there's nothing in open_positions for this key, it's "unopened"
+            if key not in open_positions or not open_positions[key]:
+                unopened.append(row.copy())
+                continue
 
-        while qty_left and open_q[key]:
-            o = open_q[key][0]
-            matched = min(qty_left, o["QTY"])
-            open_pc = o["AMOUNT"] / o["_orig_qty"]
-            open_cpc = o["COMMISSION"] / o["_orig_qty"]
-            open_fpc = o["FEES"] / o["_orig_qty"]
+            while qty_to_match > 0 and open_positions[key]:
+                open_row = open_positions[key][0]
+                matched_qty = min(qty_to_match, open_row['QTY'])
+                original_qty = open_row['_original_qty']
+                open_per_contract = open_row['AMOUNT'] / original_qty
+                open_commission_per_contract = open_row['COMMISSION'] / original_qty
+                open_fees_per_contract = open_row['FEES'] / original_qty
+                open_price = round(open_row['PRICE'], 2)
 
-            open_amt = round(open_pc * matched, 2)
-            close_amt = round(close_pc * matched, 2)
-            net = round(close_amt + open_amt, 2)
-            comm_tot = round((open_cpc + close_cpc) * matched, 2)
-            fees_tot = round((open_fpc + close_fpc) * matched, 2)
-            ret = round(net / abs(open_amt), 4) if open_amt else 0.0
+                open_amount_matched = round(open_per_contract * matched_qty, 2)
+                close_amount_matched = round(close_per_contract * matched_qty, 2)
+                net_profit = round(close_amount_matched + open_amount_matched, 2)
 
-            trades.append(
-                dict(
-                    SYMBOL=row["SYMBOL"],
-                    ACCOUNT=o["ACCOUNT"],
-                    POSITION="Long" if o["ACTIVITY"] == "Bought To Open" else "Short",
-                    OPTION_TYPE=o["OPTION_TYPE"],
-                    STRIKE_PRICE=o["STRIKE"],
-                    EXPIRATION=o["EXPIRATION_DATE"],
-                    OPEN_DATE=o["DATE"],
-                    DTE_AT_OPEN=(o["EXPIRATION_DATE"] - o["DATE"]).days,
-                    CLOSE_DATE=row["DATE"],
-                    QTY=matched,
-                    OPEN_PRICE=round(o["PRICE"], 2),
-                    CLOSE_PRICE=round(row["PRICE"], 2),
-                    OPEN_AMOUNT=open_amt,
-                    CLOSE_AMOUNT=close_amt,
-                    COMMISSION_TOTAL=comm_tot,
-                    FEES_TOTAL=fees_tot,
-                    NET_PROFIT=net,
-                    RETURN=ret,
-                )
-            )
+                commission_total = round((open_commission_per_contract + close_commission_per_contract) * matched_qty, 2)
+                fees_total = round((open_fees_per_contract + close_fees_per_contract) * matched_qty, 2)
 
-            o["QTY"] -= matched
-            qty_left -= matched
-            if o["QTY"] == 0:
-                open_q[key].popleft()
+                trade_return = 0.0
+                if open_amount_matched != 0:
+                    trade_return = round(net_profit / abs(open_amount_matched), 4)
 
-    unclosed = [pos for dq in open_q.values() for pos in dq]
+                trade_record = {
+                    'SYMBOL': row['SYMBOL'],
+                    'OPTION TYPE': open_row['OPTION_TYPE'],
+                    'STRIKE PRICE': format_strike(open_row['STRIKE']),
+                    'EXPIRATION': open_row['EXPIRATION_DATE'],
+                    'OPEN DATE': open_row['DATE'],
+                    'DTE AT OPEN': (open_row['EXPIRATION_DATE'] - open_row['DATE']).days,
+                    'CLOSE DATE': row['DATE'],
+                    'QTY': matched_qty,
+                    'OPEN PRICE': open_price,
+                    'CLOSE PRICE': close_price,
+                    'OPEN AMOUNT': open_amount_matched,
+                    'CLOSE AMOUNT': close_amount_matched,
+                    'COMMISSION TOTAL': commission_total,
+                    'FEES TOTAL': fees_total,
+                    'NET PROFIT': net_profit,
+                    'RETURN': trade_return,
+                    'ACCOUNT': open_row['ACCOUNT'],  # or row['ACCOUNT'], they should be the same
+                }
+                # Determine if the open was Bought or Sold
+                open_activity = open_row['ACTIVITY']
+                if open_activity == 'Bought To Open':
+                    position_side = 'Long'
+                elif open_activity == 'Sold To Open':
+                    position_side = 'Short'
+                else:
+                    # Should only be Open activities, but just in case:
+                    position_side = 'Unknown'
+
+                trade_record['POSITION'] = position_side
+                trades.append(trade_record)
+
+                open_row['QTY'] -= matched_qty
+                qty_to_match -= matched_qty
+                if open_row['QTY'] == 0:
+                    open_positions[key].popleft()
+
+    unclosed = [pos for positions in open_positions.values() for pos in positions]
     return pd.DataFrame(trades), pd.DataFrame(unopened), pd.DataFrame(unclosed)
 
-
-# ────────────────────────────────────────────────────────────────
-# 5)  FX lane
-# ────────────────────────────────────────────────────────────────
-def load_fx(csv_path: Path) -> pd.DataFrame:
-    df = pd.read_csv(csv_path, thousands=",")
-    for c in ["PRICE", "COMMISSION", "FEES", "AMOUNT"]:
-        df[c] = df[c].apply(parse_currency)
-    df["QTY"] = df["QTY"].apply(lambda x: float(str(x).replace(",", "")))
-    df["DATE"] = df["DATE"].apply(parse_mixed_date)
-    return df.sort_values("DATE").reset_index(drop=True)
-
-
-def match_fx(df: pd.DataFrame):
+def verify_consistency(df, trades_df, unopened_df, unclosed_df):
     """
-    FIFO match per account/pair.  
-    Positive QTY = buy BASE  (side=+1)
-    Negative QTY = sell BASE (side=-1)
-
-    ### NEW ROUND_TRIP LOGIC ###
-    We'll add a 'ROUND_TRIP' column that shows something like:
-      "USD -> GBP -> USD" or "EUR -> JPY -> EUR"
-    depending on side = +1 or -1.
-
-    Returns (trades_df, unclosed_df).
+    Optional debugging method to check whether
+    matched QTY sums line up with original open/close QTY sums.
     """
-    opens, trades = {}, []
+    original_open = df[df['ACTIVITY'].str.contains('Open')].groupby(
+        ['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
+    )['QTY'].sum().reset_index().rename(columns={'QTY': 'total_open'})
 
-    for _, r in df.iterrows():
-        key = (r["ACCOUNT"], r["PAIR"])
-        side = 1 if r["QTY"] > 0 else -1  # 1 = long base, -1 = short base
-        qty = abs(r["QTY"])
+    original_close = df[df['ACTIVITY'].str.contains('Close')].groupby(
+        ['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
+    )['QTY'].sum().reset_index().rename(columns={'QTY': 'total_close'})
 
-        opens.setdefault(key, deque())
+    trades_group = trades_df.groupby(
+        ['ACCOUNT', 'SYMBOL', 'EXPIRATION', 'STRIKE PRICE', 'OPTION TYPE']
+    )['QTY'].sum().reset_index().rename(columns={'QTY': 'matched_qty'})
 
-        # same‑side → store as new open lot
-        if not opens[key] or opens[key][-1]["SIDE"] == side:
-            row = r.copy()
-            row["SIDE"] = side
-            row["QTY_BASE"] = qty
-            opens[key].append(row)
-            continue
+    unclosed_group = unclosed_df.groupby(
+        ['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
+    )['QTY'].sum().reset_index().rename(columns={'QTY': 'unclosed_qty'})
 
-        # opposite‑side → close lot(s)
-        remaining = qty
-        while remaining and opens[key]:
-            o = opens[key][0]
-            matched = min(remaining, o["QTY_BASE"])
+    unopened_group = unopened_df.groupby(
+        ['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE']
+    )['QTY'].sum().reset_index().rename(columns={'QTY': 'unopened_qty'})
 
-            open_usd = (o["AMOUNT"] / o["QTY_BASE"]) * matched
-            close_usd = (r["AMOUNT"] / qty) * matched
-            pl = round(close_usd + open_usd, 2)
-            comm_tot = round(
-                (o["COMMISSION"] / o["QTY_BASE"] + r["COMMISSION"] / qty) * matched, 2
-            )
-            ret = round(pl / abs(open_usd), 4) if open_usd else 0.0
+    open_check = original_open.merge(
+        trades_group,
+        left_on=['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
+        right_on=['ACCOUNT', 'SYMBOL', 'EXPIRATION', 'STRIKE PRICE', 'OPTION TYPE'],
+        how='left'
+    )
+    open_check = open_check.merge(
+        unclosed_group,
+        on=['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
+        how='left'
+    )
+    open_check['matched_qty'] = open_check['matched_qty'].fillna(0)
+    open_check['unclosed_qty'] = open_check['unclosed_qty'].fillna(0)
+    open_check['total_open_calc'] = open_check['matched_qty'] + open_check['unclosed_qty']
+    open_check['open_diff'] = open_check['total_open'] - open_check['total_open_calc']
 
-            # ### NEW ROUND_TRIP LOGIC ###
-            # If side=1 (we're closing a long base), that means
-            # open was quote->base->quote => e.g. "USD -> GBP -> USD"
-            # If side=-1 (closing a short base), we do base->quote->base
-            if o["SIDE"] == 1:
-                round_trip = f"{o['QUOTE']} -> {o['BASE']} -> {o['QUOTE']}"
-            else:
-                round_trip = f"{o['BASE']} -> {o['QUOTE']} -> {o['BASE']}"
+    close_check = original_close.merge(
+        trades_group,
+        left_on=['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
+        right_on=['ACCOUNT', 'SYMBOL', 'EXPIRATION', 'STRIKE PRICE', 'OPTION TYPE'],
+        how='left'
+    )
+    close_check = close_check.merge(
+        unopened_group,
+        on=['ACCOUNT', 'OPT_SYMBOL', 'EXPIRATION_DATE', 'STRIKE', 'OPTION_TYPE'],
+        how='left'
+    )
+    close_check['matched_qty'] = close_check['matched_qty'].fillna(0)
+    close_check['unopened_qty'] = close_check['unopened_qty'].fillna(0)
+    close_check['total_close_calc'] = close_check['matched_qty'] + close_check['unopened_qty']
+    close_check['close_diff'] = close_check['total_close'] - close_check['total_close_calc']
 
-            trades.append(
-                dict(
-                    ACCOUNT=r["ACCOUNT"],
-                    PAIR=r["PAIR"],
-                    BASE_CCY=r["BASE"],
-                    QUOTE_CCY=r["QUOTE"],
-                    POSITION="Long" if side == -1 else "Short",  # we’re unwinding
-                    OPEN_DATE=o["DATE"],
-                    CLOSE_DATE=r["DATE"],
-                    QTY_BASE=matched,
-                    OPEN_PRICE=o["PRICE"],
-                    CLOSE_PRICE=r["PRICE"],
-                    OPEN_USD=open_usd,
-                    CLOSE_USD=close_usd,
-                    COMMISSION_TOTAL_USD=comm_tot,
-                    NET_P_L_USD=pl,
-                    RETURN_PCT=ret,
-                    ROUND_TRIP=round_trip,  # new column
-                )
-            )
+    # Filter to only the rows where there's a mismatch
+    open_problems = open_check[open_check['open_diff'].abs() >= 1e-6]
+    close_problems = close_check[close_check['close_diff'].abs() >= 1e-6]
 
-            o["QTY_BASE"] -= matched
-            remaining -= matched
-            if o["QTY_BASE"] == 0:
-                opens[key].popleft()
+    print("\nOpen events consistency check:")
+    if open_problems.empty:
+        print("  All open event quantities are consistent.")
+    else:
+        print(f"  Found {len(open_problems)} open event mismatch rows. Showing all:\n")
+        # Temporarily override Pandas display options so we don't see '...'
+        with pd.option_context('display.max_rows', None, 
+                               'display.max_columns', None,
+                               'display.width', 1000):
+            print(open_problems)
 
-        # residual (over‑close) becomes new opposite‑side open
-        if remaining:
-            res = r.copy()
-            res["SIDE"] = side
-            res["QTY_BASE"] = remaining
-            res["AMOUNT"] = (r["AMOUNT"] / qty) * remaining
-            res["COMMISSION"] = (r["COMMISSION"] / qty) * remaining
-            opens[key].append(res)
-
-    # build unclosed lots DataFrame
-    uc_rows = []
-    for dq in opens.values():
-        for d in dq:
-            uc_rows.append(
-                dict(
-                    ACCOUNT=d["ACCOUNT"],
-                    PAIR=d["PAIR"],
-                    BASE_CCY=d["BASE"],
-                    QUOTE_CCY=d["QUOTE"],
-                    POSITION="Long" if d["SIDE"] == 1 else "Short",
-                    OPEN_DATE=d["DATE"],
-                    QTY_BASE=d["QTY_BASE"],
-                    OPEN_PRICE=d["PRICE"],
-                    OPEN_USD=d["AMOUNT"],
-                )
-            )
-
-    return pd.DataFrame(trades), pd.DataFrame(uc_rows)
+    print("\nClose events consistency check:")
+    if close_problems.empty:
+        print("  All close event quantities are consistent.")
+    else:
+        print(f"  Found {len(close_problems)} close event mismatch rows. Showing all:\n")
+        with pd.option_context('display.max_rows', None, 
+                               'display.max_columns', None,
+                               'display.width', 1000):
+            print(close_problems)
 
 
-# ────────────────────────────────────────────────────────────────
-# 6)  Main driver
-# ────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    # locate source files
-    ally = Path("./data/Ally/activity.txt")
-    ib_csvs = list(Path("./data/IB").glob("*.csv"))
+##################################################################
+# 5) Main block
+##################################################################
 
-    if not ally.is_file():
-        sys.exit("Ally activity.txt missing")
+if __name__ == '__main__':
+    # ----------------------------------------------------------------
+    # 1) Find ally's single activity file:  ./data/Ally/activity.txt
+    # ----------------------------------------------------------------
+    ally_path = Path('./data/Ally/activity.txt')
+    if not ally_path.is_file():
+        print(f"Error: Ally file not found at {ally_path}")
+        sys.exit(1)
 
-    broker_files = [(str(ally), AllyParser())] + [
-        (str(p), IBParser()) for p in ib_csvs
+    # ----------------------------------------------------------------
+    # 2) Find all IB CSV files in ./data/IB/*.csv
+    # ----------------------------------------------------------------
+    ib_dir = Path('./data/IB')
+    ib_csv_paths = list(ib_dir.glob('*.csv'))
+    if not ib_csv_paths:
+        print(f"Warning: No IB csv files found in {ib_dir}. "
+              "If you expected IB files, please check your directory.")
+
+    # ----------------------------------------------------------------
+    # 3) Build up our list of (filepath, parser) for the aggregator
+    # ----------------------------------------------------------------
+    broker_files = []
+    broker_files.append((str(ally_path), AllyParser()))
+    for csv_file in ib_csv_paths:
+        broker_files.append((str(csv_file), IBParser()))
+
+    # ----------------------------------------------------------------
+    # 4) Where to write out the cleaned files? => ./data/cleaned/
+    # ----------------------------------------------------------------
+    out_dir = Path('./data/cleaned')
+    out_dir.mkdir(parents=True, exist_ok=True)  # Make sure it exists
+
+    transactions_file = out_dir / 'transactions.csv'
+
+    print(f"Building transactions from these sources into {transactions_file}:")
+    for fpath, parser in broker_files:
+        print(" -", fpath, "via", parser.__class__.__name__)
+
+    # Create a single consolidated CSV
+    build_transactions(broker_files, transactions_file=str(transactions_file))
+
+# ----------------------------------------------------------------
+# 5) Read, parse, and merge trades
+# ----------------------------------------------------------------
+df = read_transactions(str(transactions_file))
+df = merge_simultaneous(df)
+trades_df, unopened_df, unclosed_df = match_trades(df)
+
+# ----------------------------------------------------------------
+# 6) Write final results to ./data/cleaned/
+# ----------------------------------------------------------------
+trades_df.to_csv(out_dir / 'trades.csv', index=False)
+unopened_df.to_csv(out_dir / 'unopened.csv', index=False)
+
+unclosed_df_original = unclosed_df.copy()
+if not unclosed_df.empty:
+    # 1) Add 'POSITION' = LONG or SHORT, based on the original ACTIVITY
+    #    (We keep ACTIVITY temporarily just to create this column.)
+    #    unclosed_df has the same columns as the open_row in match_trades()
+    #    so it includes 'ACTIVITY'.
+    unclosed_df['POSITION'] = unclosed_df['ACTIVITY'].map({
+        'Bought To Open': 'Long',
+        'Sold To Open': 'Short'
+    }).fillna('UNKNOWN')  # Fallback if we ever see an unexpected open activity
+
+    # 2) Calculate DTE (Days to Expiration) at open
+    unclosed_df['DTE AT OPEN'] = (unclosed_df['EXPIRATION_DATE'] - unclosed_df['DATE']).dt.days
+
+    # 3) Rename columns for clarity
+    unclosed_df.rename(columns={
+        'DATE': 'OPEN DATE',
+        'PRICE': 'OPEN PRICE',
+        'AMOUNT': 'OPEN AMOUNT',
+        'OPT_SYMBOL': 'Option Symbol',
+        'EXPIRATION_DATE': 'Expiration',
+        'STRIKE': 'Strike Price',
+        'OPTION_TYPE': 'Option Type',
+        'QTY': 'Quantity'
+    }, inplace=True)
+
+    # 4) Re-select columns in the final unclosed.csv output
+    #    We do NOT keep ACTIVITY, COMMISSION, FEES, etc.
+    unclosed_df = unclosed_df[
+        [
+            'ACCOUNT',
+            'POSITION',         # show LONG or SHORT
+            'Option Symbol',
+            'Expiration',
+            'Strike Price',
+            'Option Type',
+            'OPEN DATE',
+            'DTE AT OPEN',
+            'Quantity',
+            'OPEN PRICE',
+            'OPEN AMOUNT'
+        ]
     ]
 
-    # output location
-    out_dir = Path("./data/cleaned")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    raw_opt = out_dir / "transactions_opt.csv"
-    raw_fx = out_dir / "transactions_fx.csv"
+unclosed_df.to_csv(out_dir / 'unclosed.csv', index=False)
 
-    # Stage‑1
-    stage_csvs(broker_files, raw_opt, raw_fx)
+print("\nProcessed trades written to:", out_dir / 'trades.csv')
+print("Unopened positions written to:", out_dir / 'unopened.csv')
+print("Unclosed positions (concise) written to:", out_dir / 'unclosed.csv')
 
-    # ───────── OPTIONS PIPELINE ─────────
-    opt_df = merge_simultaneous(load_opt(raw_opt))
-    trades_df, unopened_df, unclosed_df = match_option_trades(opt_df)
-
-    trades_df.rename(
-        columns={
-            "OPTION_TYPE": "OPTION TYPE",
-            "STRIKE_PRICE": "STRIKE PRICE",
-            "OPEN_DATE": "OPEN DATE",
-            "CLOSE_DATE": "CLOSE DATE",
-            "DTE_AT_OPEN": "DTE AT OPEN",
-            "NET_PROFIT": "NET PROFIT",
-        },
-        inplace=True,
-    )
-    trades_df.to_csv(out_dir / "trades.csv", index=False)
-    unopened_df.to_csv(out_dir / "unopened.csv", index=False)
-
-    if not unclosed_df.empty:
-        unclosed_df["POSITION"] = unclosed_df["ACTIVITY"].map(
-            {"Bought To Open": "Long", "Sold To Open": "Short"}
-        ).fillna("UNK")
-        unclosed_df["DTE AT OPEN"] = (
-            unclosed_df["EXPIRATION_DATE"] - unclosed_df["DATE"]
-        ).dt.days
-        unclosed_df.rename(
-            columns={
-                "DATE": "OPEN DATE",
-                "PRICE": "OPEN PRICE",
-                "AMOUNT": "OPEN AMOUNT",
-                "OPT_SYMBOL": "Option Symbol",
-                "EXPIRATION_DATE": "Expiration",
-                "STRIKE": "Strike Price",
-                "OPTION_TYPE": "Option Type",
-                "QTY": "Quantity",
-            },
-            inplace=True,
-        )
-        keep_cols = [
-            "ACCOUNT",
-            "POSITION",
-            "Option Symbol",
-            "Expiration",
-            "Strike Price",
-            "Option Type",
-            "OPEN DATE",
-            "DTE AT OPEN",
-            "Quantity",
-            "OPEN PRICE",
-            "OPEN AMOUNT",
-        ]
-        unclosed_df[keep_cols].to_csv(out_dir / "unclosed.csv", index=False)
-    else:
-        pd.DataFrame().to_csv(out_dir / "unclosed.csv", index=False)
-
-    # ───────── FX PIPELINE ──────────────
-    if raw_fx.stat().st_size > 80:  # not just the header
-        fx_df = load_fx(raw_fx)
-        fx_trades_df, fx_unclosed_df = match_fx(fx_df)
-
-        # Save final matched trades (which now includes ROUND_TRIP)
-        fx_trades_df.to_csv(out_dir / "fx_trades.csv", index=False)
-
-        # Save unclosed
-        fx_unclosed_df.to_csv(out_dir / "fx_unclosed.csv", index=False)
-
-        print("FX trades   →", out_dir / "fx_trades.csv")
-        print("FX unclosed →", out_dir / "fx_unclosed.csv")
-
-    else:
-        # create empty placeholders so downstream code never breaks
-        pd.DataFrame().to_csv(out_dir / "fx_trades.csv", index=False)
-        pd.DataFrame().to_csv(out_dir / "fx_unclosed.csv", index=False)
-        print("No FX activity detected.")
-
-    print("Option trades →", out_dir / "trades.csv")
+# ----------------------------------------------------------------
+# 7) Optional consistency checks
+# ----------------------------------------------------------------
+verify_consistency(df, trades_df, unopened_df, unclosed_df_original)

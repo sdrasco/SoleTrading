@@ -1,0 +1,37 @@
+
+I have a Python codebase that generates HTML reports (via Jinja2) on trading performance. It’s divided into five files:
+
+report/
+├─ main_report.py
+├─ data_loading.py
+├─ kpi_calculations.py
+├─ visualization.py
+└─ report_rendering.py
+
+File Roles
+	1.	main_report.py (entry point)
+	•	Orchestrates the entire flow:
+	1.	Load pre-cleaned CSVs (e.g., data/cleaned/trades.csv and data/cleaned/fx_trades.csv),
+	2.	Compute KPIs & weekly summaries,
+	3.	Generate base64-encoded charts,
+	4.	Assemble final HTML context,
+	5.	Render via Jinja templates.
+	•	Run with python main_report.py to produce ../docs/pro.html and ../docs/basic.html.
+	2.	data_loading.py
+	•	Contains functions to read the CSV files (e.g. load_trades(), load_fx_trades()), parse their columns/dates, and merge them into one combined DataFrame.
+	•	Ensures consistency in columns like "NET PROFIT", "RETURN", "POSITION", "SYMBOL".
+	3.	kpi_calculations.py
+	•	Houses the numeric/statistical functions, e.g. compute_kpis() (Sharpe ratio, max drawdown, net profit, etc.) and generate_weekly_summary() (aggregates trades by week, calculates win rate, sortino, etc.).
+	4.	visualization.py
+	•	All Matplotlib plotting logic: generating equity curves, histograms, bar charts, etc.
+	•	Each function returns a base64-encoded PNG so it can be embedded directly in HTML.
+	5.	report_rendering.py
+	•	Handles Jinja2 template rendering (reading a .html template, substituting placeholders from a context dictionary) and writing the final file.
+	•	Also includes small helper functions (e.g., format_date_cell()) to format date cells for HTML tables.
+
+Execution & Outputs
+	•	Run: python main_report.py (from inside the report/ folder or by adjusting your paths accordingly).
+	•	Inputs: The script expects cleaned trading data in ../data/cleaned/trades.csv & ../data/cleaned/fx_trades.csv (produced by the separate “cleaning” modules).
+	•	Outputs: The script generates final HTML files (e.g. ../docs/pro.html, ../docs/basic.html) containing tables, charts, and summary statistics of the trades.
+
+I have solid working versions of all these modles, but I need some help developing them further.  Can you assist?  If so, I'll say what part I want to work on, show code, etc.
