@@ -290,46 +290,51 @@ def parse_mixed_date(str_date):
 # 3) build_transactions
 ##################################################################
 
-def build_transactions(broker_files, transactions_file='transactions.csv'):
+def build_transactions(broker_files, transactions_file=None):
     """
-    Read every broker file, pass each row through its parser, and write a
-    single consolidated CSV with columns:
+    Read every broker file, pass each row through its parser, and return a
+    consolidated pandas DataFrame with columns:
 
         ACCOUNT, DATE, ACTIVITY, QTY, SYMBOL, DESCRIPTION,
         PRICE, COMMISSION, FEES, AMOUNT, CURRENCY, EXCHANGE
+    
+    If transactions_file is provided, also write the CSV to that file.
     """
     columns = [
         "ACCOUNT", "DATE", "ACTIVITY", "QTY", "SYMBOL", "DESCRIPTION",
         "PRICE", "COMMISSION", "FEES", "AMOUNT", "NATIVE_CCY", "EXCHANGE"
     ]
 
-    with open(transactions_file, 'w', newline='') as outfile:
-        writer = csv.writer(outfile)
-        writer.writerow(columns)
+    rows = []
+    for file_path, parser in broker_files:
+        print(f"Parsing '{file_path}' with {parser.__class__.__name__}...")
 
-        for file_path, parser in broker_files:
-            print(f"Parsing '{file_path}' with {parser.__class__.__name__}...")
+        # pick delimiter based on extension
+        if file_path.endswith('.txt'):
+            delimiter = '\t'  # Ally
+        elif file_path.endswith('.csv'):
+            delimiter = ','   # IB
+        else:
+            print(f"Warning: Unknown file extension for {file_path}, skipping...")
+            continue
 
-            # pick delimiter based on extension
-            if file_path.endswith('.txt'):
-                delimiter = '\t'          # Ally
-            elif file_path.endswith('.csv'):
-                delimiter = ','           # IB
-            else:
-                print(f"Warning: Unknown file extension for {file_path}, skipping...")
-                continue
+        with open(file_path, newline='') as f:
+            for row in csv.reader(f, delimiter=delimiter):
+                parsed = parser.parse_row(row)
+                if not parsed:
+                    continue
 
-            with open(file_path, newline='') as f:
-                for row in csv.reader(f, delimiter=delimiter):
-                    parsed = parser.parse_row(row)
-                    if not parsed:
-                        continue
+                # make all keys uppercase so they match the header names
+                parsed_uc = {k.upper(): v for k, v in parsed.items()}
+                rows.append([parsed_uc.get(col, "") for col in columns])
 
-                    # make all keys uppercase so they match the header names
-                    parsed_uc = {k.upper(): v for k, v in parsed.items()}
+    df = pd.DataFrame(rows, columns=columns)
 
-                    # write the row in header order (use empty string if missing)
-                    writer.writerow([parsed_uc.get(col, "") for col in columns])
+    if transactions_file:
+        df.to_csv(transactions_file, index=False)
+        print("✔ transactions.csv written to", transactions_file)
+
+    return df
 
 ##################################################################
 # 4) parse_description, read_transactions, merges, matching, etc.
@@ -350,8 +355,12 @@ def parse_description(row):
         row['OPTION_TYPE'] = None
     return row
 
-def read_transactions(file):
-    df = pd.read_csv(file, thousands=',')
+def read_transactions(file_or_df):
+    # Accept either a filename or a DataFrame
+    if isinstance(file_or_df, pd.DataFrame):
+        df = file_or_df.copy()
+    else:
+        df = pd.read_csv(file_or_df, thousands=',')
     # Filter out "Cash Movement" just like before
     df = df[df['ACTIVITY'] != 'Cash Movement'].copy()
 
@@ -645,27 +654,22 @@ if __name__ == '__main__':
     out_dir = Path('./data/cleaned')
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    transactions_file = out_dir / 'transactions.csv'
-
-    print(f"\nBuilding transactions in {transactions_file}:")
+    # ----------------------------------------------------------------
+    # 5) Build and parse transactions without intermediate file
+    # ----------------------------------------------------------------
+    print("\nBuilding transactions in memory...")
     for fpath, parser in broker_files:
         print(" –", fpath, "via", parser.__class__.__name__)
-
-    # Create the consolidated CSV (now includes CURRENCY & EXCHANGE cols)
-    build_transactions(broker_files, transactions_file=str(transactions_file))
-
-    # ----------------------------------------------------------------
-    # 5) Read, parse, and merge trades  (unchanged)
-    # ----------------------------------------------------------------
-    df = read_transactions(str(transactions_file))
+    df_raw = build_transactions(broker_files)
+    df = read_transactions(df_raw)
     df = merge_simultaneous(df)
     trades_df, unopened_df, unclosed_df = match_trades(df)
 
     # ----------------------------------------------------------------
     # 6) Write final results
     # ----------------------------------------------------------------
+    # Write final trades; skip saving unmatched (unopened) closes
     trades_df.to_csv(out_dir / 'trades.csv', index=False)
-    unopened_df.to_csv(out_dir / 'unopened.csv', index=False)
 
     # ----- post-processing for unclosed_df (same as your original) -----
     unclosed_df_original = unclosed_df.copy()
@@ -701,8 +705,7 @@ if __name__ == '__main__':
 
     unclosed_df.to_csv(out_dir / 'unclosed.csv', index=False)
 
-    print("\nProcessed trades written to :", out_dir / 'trades.csv')
-    print("Unopened positions written to:", out_dir / 'unopened.csv')
+    print("\nProcessed trades written to:", out_dir / 'trades.csv')
     print("Unclosed positions written to:", out_dir / 'unclosed.csv')
 
     # ----------------------------------------------------------------
