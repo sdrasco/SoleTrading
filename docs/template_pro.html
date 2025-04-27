@@ -276,14 +276,28 @@
     <a href="#individual-trades">Closed Trades</a>
   </nav>
 
-  <!-- REPORT INFO CARDS: No extra heading -->
+  <!-- REPORT INFO CARDS: styled like Basic report -->
   <div class="section" id="report-info">
     <div class="report-info-container">
+      <!-- Report Date Card -->
       <div class="metric-card">
-        <div class="metric-value">{{ Report_Generated }}</div>
+        <div class="metric-title">Report Date</div>
+        <div class="metric-value">
+          {% set splitted = Report_Generated.split(', ') %}
+          <div>{{ splitted[0] }}</div>
+          <div>{{ splitted[1] }}</div>
+          <div>{{ splitted[2] }}</div>
+        </div>
       </div>
+      <!-- Trading Period Card -->
       <div class="metric-card">
-        <div class="metric-value">{{ Reporting_Period }}</div>
+        <div class="metric-title">Trading Period</div>
+        <div class="metric-value">
+          {% set sp = Reporting_Period.split(' to ') %}
+          <div>{{ sp[0] }}</div>
+          <div>to</div>
+          <div>{{ sp[1] }}</div>
+        </div>
       </div>
     </div>
   </div>
