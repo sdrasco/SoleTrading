@@ -506,6 +506,14 @@ if __name__ == '__main__':
     # 4) Process unclosed positions
     open_positions_df = pd.read_csv("data/cleaned/unclosed.csv")
 
+    # indicate the native currency of the trade
+    if "Ccy" in open_positions_df.columns:         # ← already perfect
+        pass
+    elif "NATIVE_CCY" in open_positions_df.columns:  # ← older files
+        open_positions_df.rename(columns={"NATIVE_CCY": "Ccy"}, inplace=True)
+    else:                                           # ← safety net
+        open_positions_df["Ccy"] = "USD"   
+
     # Remove the "ACCOUNT" column (case-sensitive check)
     if "ACCOUNT" in open_positions_df.columns:
         open_positions_df.drop(columns=["ACCOUNT"], inplace=True)
@@ -550,7 +558,8 @@ if __name__ == '__main__':
             "Quantity":       "Qty",
             "OPEN PRICE":     "Premium",
             "OPEN AMOUNT":    "Cost",
-            "DTE":            "DTE (Now)"
+            "DTE":            "DTE (Now)",
+            "Ccy": "Ccy"
         }
         df = df.rename(columns=rename_map)
 
@@ -558,7 +567,7 @@ if __name__ == '__main__':
             "Symbol", "Position", "Type", "Strike",
             "Expiration Date", "Open Date", 
             "DTE (Open)", "DTE (Now)", 
-            "Qty", "Premium", "Cost"
+            "Qty", "Premium", "Cost", "Ccy"
         ]
         desired_order = [col for col in desired_order if col in df.columns]
         df = df[desired_order]
@@ -574,7 +583,8 @@ if __name__ == '__main__':
             "DTE (Now)":        "Days-to-expiration from today.",
             "Qty":              "Number of option contracts.",
             "Premium":          "Fill price per share on opening.",
-            "Cost":             "Net cost or credit at opening."
+            "Cost":             "Net cost or credit at opening.",
+            "Ccy":              "Original fill currency for this trade."
         }
         
         new_headers = {}
@@ -633,7 +643,8 @@ if __name__ == '__main__':
             "OPEN AMOUNT":    "Open Amount",
             "CLOSE AMOUNT":   "Close Amount",
             "NET PROFIT":     "Profit",
-            "RETURN":         "Return"
+            "RETURN":         "Return",
+            "NATIVE CCY":     "Ccy"
         }
         df = df.rename(columns=rename_map)
         if "Type" in df.columns:
@@ -643,7 +654,7 @@ if __name__ == '__main__':
             "Symbol", "Position", "Type", "Strike",
             "Open Date", "Close Date", "Expiration Date",
             "Days Held", "Qty", "Premium (Open)", "Premium (Close)",
-            "Profit", "Return"
+            "Profit", "Return", "Ccy"
         ]
         desired_order = [col for col in desired_order if col in df.columns]
         df = df[desired_order]
@@ -661,7 +672,8 @@ if __name__ == '__main__':
             "Premium (Open)":  "Price per contract/share on opening.",
             "Premium (Close)": "Price per contract/share on closing.",
             "Profit":          "Net P/L in dollars for this trade.",
-            "Return":          "Profit as fraction of cost basis."
+            "Return":          "Profit as fraction of cost basis.",
+            "Ccy":             "Original fill currency for this trade."
         }
 
         new_headers = {}
