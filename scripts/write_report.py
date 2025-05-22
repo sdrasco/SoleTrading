@@ -183,7 +183,7 @@ def main():
         "Win_Rate": f"{kpis['win_rate']:.0f}%",
         "Sharpe_Ratio": f"{kpis['sharpe_ratio']:.2f}",
         "adjusted_sortino": f"{kpis['adjusted_sortino_ratio']:.2f}" if not np.isnan(kpis["adjusted_sortino_ratio"]) else "--",
-        "Max_Drawdown": f"{kpis['max_drawdown_pct']:.0f}%",
+        "Max_Drawdown": f"-${kpis['max_drawdown']:,.0f}",
         "Volatility": f"{kpis['volatility']:.2f}",
         "Equity_Curve": equity_curve_img_pro,
         "Trade_Return_Histogram": trade_hist_img,

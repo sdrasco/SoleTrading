@@ -64,8 +64,10 @@ def compute_kpis(df):
     # Drawdown
     cumulative = df_sorted["CUMULATIVE_NET_PROFIT"]
     running_max = cumulative.cummax()
-    drawdown = (cumulative - running_max) / running_max.replace(0, np.nan)
-    max_drawdown_pct = abs(drawdown.min() * 100)
+    drawdown_pct = (cumulative - running_max) / running_max.replace(0, np.nan)
+    max_drawdown_pct = abs(drawdown_pct.min() * 100)
+    drawdown_abs = cumulative - running_max
+    max_drawdown = abs(drawdown_abs.min())
     volatility = std_return
     adjusted_sortino = compute_adjusted_sortino_ratio(df)
     return {
@@ -75,6 +77,7 @@ def compute_kpis(df):
         "win_rate": win_rate,
         "sharpe_ratio": sharpe_ratio,
         "max_drawdown_pct": max_drawdown_pct,
+        "max_drawdown": max_drawdown,
         "volatility": volatility,
         "equity_curve": df_sorted,
         "adjusted_sortino_ratio": adjusted_sortino,
