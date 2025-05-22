@@ -264,11 +264,11 @@ def generate_feature_plots(df: pd.DataFrame, features: list) -> dict:
         if pd.api.types.is_numeric_dtype(df[feature]):
             # Bin numeric data into deciles to smooth the win rate curve
             binned = pd.qcut(df[feature], q=10, duplicates='drop')
-            win_rate = df.groupby(binned)['WIN'].mean() * 100
+            win_rate = df.groupby(binned, observed=False)['WIN'].mean() * 100
             win_rate.plot(kind='bar', color=win_col, edgecolor='black', ax=ax)
             ax.tick_params(axis='x', rotation=45)
         else:
-            win_rate = df.groupby(feature)['WIN'].mean() * 100
+            win_rate = df.groupby(feature, observed=False)['WIN'].mean() * 100
             if feature in ['DAY_OF_WEEK_AT_OPEN', 'DAY_OF_WEEK_AT_CLOSE']:
                 win_rate = win_rate.reindex(weekday_order).dropna()
             win_rate.plot(kind='bar', color=win_col, edgecolor='black', ax=ax)
