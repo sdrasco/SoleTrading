@@ -67,7 +67,8 @@ def generate_equity_curve_plot(trades_df: pd.DataFrame) -> str:
     ax1.tick_params(axis='y', labelsize=FONT_TICK, colors=green)
     ax1.tick_params(axis='x', labelsize=FONT_TICK)
     max_w = math.ceil(x_vals.max())
-    step = max(1, max_w // 10)
+    # label every other week to keep the x-axis uncluttered
+    step = 2
     ax1.set_xticks(np.arange(1, max_w + 1, step))
     plt.tight_layout()
     buf = io.BytesIO(); plt.savefig(buf, format='png', bbox_inches='tight'); plt.close(fig)
