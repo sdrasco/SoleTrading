@@ -107,10 +107,11 @@ def _generate_basic_equity_custom(trades_df: pd.DataFrame, fig_width: int, fig_h
     grad = np.repeat(grad, width, axis=1)
 
     xmin, xmax = x_smooth.min(), x_smooth.max()
-    ymin, ymax = 0, y_smooth.max()
-    # set axis limits with a small top margin
+    ymin = min(0, y_smooth.min())
+    ymax = y_smooth.max()
+    # set axis limits with a small margin
     ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax * 1.05)
+    ax.set_ylim(ymin * 1.05 if ymin < 0 else ymin, ymax * 1.05)
 
     # draw gradient image behind the plot
     img = ax.imshow(
@@ -182,9 +183,10 @@ def _generate_basic_equity_date(trades_df: pd.DataFrame, fig_width: int, fig_hei
     ax.set_ylabel('Profit ($)', fontsize=FONT_LABEL)
     ax.tick_params(labelsize=FONT_TICK)
 
-    # y-axis limit +5%
+    # y-axis limit +5%, allowing negative equity
     if len(values) > 0:
-        ax.set_ylim(0, values.max() * 1.05)
+        ymin = min(0, values.min())
+        ax.set_ylim(ymin * 1.05 if ymin < 0 else ymin, values.max() * 1.05)
 
     plt.tight_layout()
     buf = io.BytesIO()
