@@ -248,46 +248,40 @@ def generate_win_rate_by_symbol_plot(df: pd.DataFrame) -> str:
     return base64.b64encode(buf.getvalue()).decode('utf-8')
 
 def generate_feature_plots(df: pd.DataFrame, features: list) -> dict:
-    """Plots of win/loss by numeric or categorical features."""
+    """Plots of win rate by numeric or categorical features."""
     plots = {}
     df = df.copy()
     df['WIN'] = (df['NET PROFIT'] > 0).astype(int)
-    win_col, loss_col = '#6BA368', '#777777'
-    weekday_order = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+    win_col = '#6BA368'
+    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
     for feature in features:
         if feature not in df.columns:
             continue
+
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+
         if pd.api.types.is_numeric_dtype(df[feature]):
-            df[df['WIN']==0][feature].plot(
-                kind='hist', bins=20, alpha=0.5,
-                color=loss_col, ax=ax
-            )
-            df[df['WIN']==1][feature].plot(
-                kind='hist', bins=20, alpha=0.5,
-                color=win_col, ax=ax
-            )
-            # use equity chart font sizes
-            ax.set_xlabel(feature.replace('_',' '), fontsize=FONT_LABEL)
-            ax.set_ylabel('Number of Trades', fontsize=FONT_LABEL)
-            ax.legend(['Losses','Wins'], fontsize=LEGEND_FONT)
-            ax.tick_params(axis='x', labelsize=FONT_TICK)
-            ax.tick_params(axis='y', labelsize=FONT_TICK)
+            # Bin numeric data into deciles to smooth the win rate curve
+            binned = pd.qcut(df[feature], q=10, duplicates='drop')
+            win_rate = df.groupby(binned)['WIN'].mean() * 100
+            win_rate.plot(kind='bar', color=win_col, edgecolor='black', ax=ax)
+            ax.tick_params(axis='x', rotation=45)
         else:
-            counts = df.groupby([feature,'WIN']).size().unstack(fill_value=0)
-            if feature in ['DAY_OF_WEEK_AT_OPEN','DAY_OF_WEEK_AT_CLOSE']:
-                counts = counts.reindex(weekday_order).dropna(how='all')
-            counts.plot(
-                kind='bar', stacked=True,
-                color=[loss_col, win_col], ax=ax
-            )
-            # use equity chart font sizes
-            ax.set_xlabel(feature.replace('_',' '), fontsize=FONT_LABEL)
-            ax.set_ylabel('Number of Trades', fontsize=FONT_LABEL)
-            ax.legend(['Losses','Wins'], fontsize=LEGEND_FONT)
-            ax.tick_params(axis='x', labelsize=FONT_TICK, rotation=45)
-            ax.tick_params(axis='y', labelsize=FONT_TICK)
+            win_rate = df.groupby(feature)['WIN'].mean() * 100
+            if feature in ['DAY_OF_WEEK_AT_OPEN', 'DAY_OF_WEEK_AT_CLOSE']:
+                win_rate = win_rate.reindex(weekday_order).dropna()
+            win_rate.plot(kind='bar', color=win_col, edgecolor='black', ax=ax)
+            ax.tick_params(axis='x', rotation=45)
+
+        ax.set_xlabel(feature.replace('_', ' '), fontsize=FONT_LABEL)
+        ax.set_ylabel('Win Rate (%)', fontsize=FONT_LABEL)
+        ax.set_ylim(0, 100)
+        ax.tick_params(axis='x', labelsize=FONT_TICK)
+        ax.tick_params(axis='y', labelsize=FONT_TICK)
+
         plt.tight_layout()
         buf = io.BytesIO(); plt.savefig(buf, format='png', bbox_inches='tight'); plt.close(fig)
         plots[feature] = base64.b64encode(buf.getvalue()).decode('utf-8')
+
     return plots
