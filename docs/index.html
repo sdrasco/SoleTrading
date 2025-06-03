@@ -2,23 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Mobile‑Friendly -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>Sdrike</title>
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 
   <!-- Social media preview metadata -->
-  <meta property="og:title"       content="Sdrike" />
+  <meta property="og:title" content="Sdrike" />
   <meta property="og:description" content="A solo trading effort by Steve Drasco." />
-  <meta property="og:image"       content="https://sdrike.com/images/thumb.png" />
-  <meta property="og:type"        content="website" />
-  <meta property="og:url"         content="https://sdrike.com/" />
-
-  <meta name="twitter:card"        content="summary_large_image" />
-  <meta name="twitter:title"       content="Sdrike" />
+  <meta property="og:image" content="https://sdrike.com/images/thumb.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://sdrike.com/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Sdrike" />
   <meta name="twitter:description" content="A solo trading effort by Steve Drasco." />
-  <meta name="twitter:image"       content="https://sdrike.com/images/thumb.png" />
+  <meta name="twitter:image" content="https://sdrike.com/images/thumb.png" />
 
   <style>
     :root{
@@ -31,46 +28,87 @@
     }
 
     body{
-      font-family:'Open Sans',Arial,sans-serif;
+      font-family:'Open Sans', Arial, sans-serif;
       background:var(--neutral-bg);
       color:var(--neutral-text);
-      margin:0;padding:40px 20px;
-      display:flex;flex-direction:column;align-items:center;
+      margin:0; padding:40px 20px;
+      display:flex; flex-direction:column; align-items:center;
     }
 
-    h1{color:var(--primary-color);font-size:2rem;margin-bottom:40px;text-align:center}
+    h1{
+      color:var(--primary-color);
+      font-size:2rem;
+      margin-bottom:40px;
+      text-align:center
+    }
 
     .choice-container{
-      display:flex;gap:40px;flex-wrap:wrap;justify-content:center
+      display:flex;
+      justify-content:center;
+      flex-wrap:wrap;
+      gap:40px;
     }
+
     .choice-card{
-      background:var(--card-bg);border-radius:12px;
+      background:var(--card-bg);
+      border-radius:12px;
       box-shadow:0 2px 8px var(--shadow-color);
-      padding:20px;max-width:300px;text-align:center;
-      cursor:pointer;transition:transform .2s ease;
+      padding:20px;
+      max-width:300px;
+      text-align:center;
       flex:1 1 280px;
     }
-    .choice-card:hover{transform:translateY(-4px)}
-    .choice-card img{width:100%;height:auto;border-radius:8px;margin-bottom:15px}
-    .caption{white-space:pre-line;font-size:.95rem;color:var(--neutral-text)}
 
-    /* ---- whimsical button ---- */
-    .cta-wrapper{margin:50px 0 10px;text-align:center;width:100%}
+    .choice-card img{
+      width:100%;
+      height:auto;
+      border-radius:8px;
+      margin-bottom:15px;
+    }
+
+    .caption{
+      white-space:pre-line;
+      font-size:.95rem;
+      color:var(--neutral-text)
+    }
+
+    .cta-wrapper{
+      margin:50px 0 10px;
+      text-align:center;
+      width:100%;
+    }
+
     .cta-btn{
-      display:inline-block;padding:12px 26px;
-      font-weight:600;font-size:1rem;
-      color:#fff;background:var(--primary-color);
-      border:none;border-radius:28px;
+      display:inline-block;
+      padding:12px 26px;
+      font-weight:600;
+      font-size:1rem;
+      color:#fff;
+      background:var(--primary-color);
+      border:none;
+      border-radius:28px;
       box-shadow:0 2px 6px var(--shadow-color);
-      cursor:pointer;transition:background .2s ease, transform .2s ease;
+      cursor:pointer;
+      transition:background .2s ease, transform .2s ease;
       text-decoration:none;
     }
-    .cta-btn:hover{background:var(--primary-accent);transform:translateY(-2px)}
-    .cta-btn:active{transform:translateY(0)}
 
-    footer{margin-top:60px;font-size:.85rem;color:#777;text-align:center}
+    .cta-btn:hover{
+      background:var(--primary-accent);
+      transform:translateY(-2px);
+    }
 
-    /* small‑screen tweaks */
+    .cta-btn:active{
+      transform:translateY(0);
+    }
+
+    footer{
+      margin-top:60px;
+      font-size:.85rem;
+      color:#777;
+      text-align:center
+    }
+
     @media(max-width:600px){
       body{padding:20px 10px}
       .choice-card{max-width:90%}
@@ -80,29 +118,17 @@
   </style>
 </head>
 <body>
-  <h1>Please choose one.</h1>
+  <h1>Scene one is a <s>bust</s> wrap.<br>Stay tuned for scene two.</h1>
 
   <div class="choice-container">
-    <div class="choice-card" onclick="window.location.href='pro.html'">
-      <img src="images/pro.png" alt="Pro Visitor">
+    <div class="choice-card">
+      <img src="images/cut.png" alt="Scene One">
       <div class="caption">
-        Show me everything.
-        I back‑test before breakfast.
-        (maximalist data)
-      </div>
-    </div>
-
-    <div class="choice-card" onclick="window.location.href='basic.html'">
-      <img src="images/basic.png" alt="Basic Visitor">
-      <div class="caption">
-        Fast facts please.
-        I chase lasers.
-        (minimalist data)
+        Our first feature is in the can.
       </div>
     </div>
   </div>
 
-  <!-- whimsical CTA -->
   <div class="cta-wrapper">
     <a class="cta-btn" href="market_schedules.html">
       ⏰&nbsp;What time is it?&nbsp;
